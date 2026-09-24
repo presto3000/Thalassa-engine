@@ -1,5 +1,7 @@
 add_library(thalassa_sim STATIC
     src/sim_world.cpp
+    src/systems/movement.cpp
+    src/replay.cpp
 )
 add_library(thalassa::sim ALIAS thalassa_sim)
 

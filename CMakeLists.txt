@@ -86,6 +86,7 @@ endif()
 if(THALASSA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/thalassa_core)
+    add_subdirectory(tests/thalassa_sim)
 endif()
 
 message(STATUS "==================================================")

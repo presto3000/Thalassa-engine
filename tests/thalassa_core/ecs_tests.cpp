@@ -136,3 +136,74 @@ TEST_CASE("Determinism: same operations produce same iteration results across tw
 
     REQUIRE(build() == build());
 }
+
+namespace {
+    struct Team { int id = 0; };
+}  // namespace
+
+TEST_CASE("each<T1,T2,T3> only visits entities with all three components", "[ecs]") {
+    World world;
+
+    const Entity a = world.create_entity();
+    const Entity b = world.create_entity();
+    const Entity c = world.create_entity();
+    const Entity d = world.create_entity();
+
+    // a: all three
+    world.emplace<Position>(a, Position{ 1.0, 0.0 });
+    world.emplace<Health>(a, Health{ 10 });
+    world.emplace<Team>(a, Team{ 1 });
+
+    // b: missing Team
+    world.emplace<Position>(b, Position{ 2.0, 0.0 });
+    world.emplace<Health>(b, Health{ 20 });
+
+    // c: missing Health
+    world.emplace<Position>(c, Position{ 3.0, 0.0 });
+    world.emplace<Team>(c, Team{ 1 });
+
+    // d: missing Position
+    world.emplace<Health>(d, Health{ 40 });
+    world.emplace<Team>(d, Team{ 1 });
+
+    int visited = 0;
+    world.each<Position, Health, Team>([&visited, a](Entity e, Position&, Health&, Team&) {
+        REQUIRE(e == a);
+        ++visited;
+        });
+
+    REQUIRE(visited == 1);
+}
+
+TEST_CASE("each<T1,T2,T3> is correct regardless of which pool is smallest", "[ecs]") {
+    // Build three scenarios where each of the three pools is, in turn, the
+    // smallest, and check the matched set is identical every time.
+    auto run = [](int extra_position, int extra_health, int extra_team) {
+        World world;
+        const Entity shared = world.create_entity();
+        world.emplace<Position>(shared, Position{});
+        world.emplace<Health>(shared, Health{});
+        world.emplace<Team>(shared, Team{});
+
+        for (int i = 0; i < extra_position; ++i) {
+            world.emplace<Position>(world.create_entity(), Position{});
+        }
+        for (int i = 0; i < extra_health; ++i) {
+            world.emplace<Health>(world.create_entity(), Health{});
+        }
+        for (int i = 0; i < extra_team; ++i) {
+            world.emplace<Team>(world.create_entity(), Team{});
+        }
+
+        int visited = 0;
+        world.each<Position, Health, Team>([&visited, shared](Entity e, Position&, Health&, Team&) {
+            REQUIRE(e == shared);
+            ++visited;
+            });
+        return visited;
+        };
+
+    REQUIRE(run(10, 0, 0) == 1);   // Health/Team pools are smallest (tied)
+    REQUIRE(run(0, 10, 0) == 1);   // Position/Team pools are smallest (tied)
+    REQUIRE(run(0, 0, 10) == 1);   // Position/Health pools are smallest (tied)
+}

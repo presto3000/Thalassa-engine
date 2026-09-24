@@ -15,5 +15,7 @@
 #include "thalassa/core/math/vector.hpp"
 #include "thalassa/core/memory/arena.hpp"
 #include "thalassa/core/random.hpp"
+#include "thalassa/core/serialization/byte_stream.hpp"
+#include "thalassa/core/spatial/uniform_grid.hpp"
 #include "thalassa/core/time/fixed_timestep.hpp"
 #include "thalassa/core/types.hpp"

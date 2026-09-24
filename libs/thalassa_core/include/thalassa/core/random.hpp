@@ -8,9 +8,7 @@
 // Deterministic RNG for simulation use. PCG32 (O'Neill, 2014): small state,
 // fast, good statistical quality, and — the property that actually matters
 // here — a fully specified integer algorithm with no platform-dependent
-// behavior, unlike std::mt19937's implementation-defined-adjacent seeding
-// or any RNG that touches floating point internally. Every world/replay
-// carries its own Rng instance seeded explicitly (never from
+// behavior. Every world/replay carries its own Rng instance seeded explicitly (never from
 // std::random_device or time) so replays are reproducible byte-for-byte.
 
 namespace thalassa::core {
