@@ -26,14 +26,14 @@
 // actually uses — that's here, not in thalassa_core, because thalassa_core
 // must stay gameplay-agnostic (see the module-boundary rule in the root
 // CMakeLists.txt comments and docs/ecs_decision.md). Adding a new
-// serializable component type later means adding one line
+// serializable component type later, means adding one line
 // to save_world()/load_world()'s call sequence — nothing in thalassa_core
 // changes.
 
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kSnapshotMagic = 0x54484C41;  // "THLA" (Thalassa)
-inline constexpr std::uint32_t kSnapshotVersion = 1;
+inline constexpr std::uint32_t kSnapshotVersion = 2;  // v2: adds Team/Owner/Health/CombatStats/Projectile
 
 // Serializes `world` into `writer`. See the file-level comment for scope.
 void save_world(const SimWorld& world, core::serialization::ByteWriter& writer);

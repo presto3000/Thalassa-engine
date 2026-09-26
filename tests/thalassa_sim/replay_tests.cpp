@@ -26,13 +26,21 @@ void populate(SimWorld& world, std::uint32_t entity_count) {
         const auto speed = 10.0 + world.rng().next_scalar01() * 20.0;
         world.world().emplace<Position>(e, Position{{sx, sy, 0.0}});
         world.world().emplace<Destination>(e, Destination{{tx, ty, 0.0}, speed, 0.1});
+        // Also exercise the Milestone 2 components so their pools round-trip
+        // through save_world/load_world, not just Position/Velocity/Destination.
+        world.world().emplace<thalassa::sim::components::Team>(e, thalassa::sim::components::Team{
+                                                                        static_cast<std::int32_t>(i % 2)});
+        world.world().emplace<thalassa::sim::components::Health>(e, thalassa::sim::components::Health{100.0, 100.0});
+        world.world().emplace<thalassa::sim::components::CombatStats>(
+            e, thalassa::sim::components::CombatStats{10.0, 15.0, 0.5, 0.0});
     }
 }
 
 std::uint64_t checksum_of(const SimWorld& world) {
     std::uint64_t result = 0;
-    // world() is const here, but each<T> is only defined non-const on World today;
-    // cast away const for this test-only checksum helper rather than adding an
+    // world() is const here, but each<T> is only defined non-const on
+    // World today (Milestone 1 has no read-only query use case yet); cast
+    // away const for this test-only checksum helper rather than adding an
     // unused const overload to the public API speculatively.
     auto& mutable_world = const_cast<thalassa::core::ecs::World&>(world.world());
     mutable_world.each<Position>([&result](Entity e, const Position& p) {
@@ -80,6 +88,12 @@ TEST_CASE("save_world/load_world round-trips entities, components, RNG, and tick
     REQUIRE(restored.world().alive_count() == original.world().alive_count());
     REQUIRE(restored.world().component_count<Position>() == original.world().component_count<Position>());
     REQUIRE(restored.world().component_count<Destination>() == original.world().component_count<Destination>());
+    REQUIRE(restored.world().component_count<thalassa::sim::components::Team>() ==
+            original.world().component_count<thalassa::sim::components::Team>());
+    REQUIRE(restored.world().component_count<thalassa::sim::components::Health>() ==
+            original.world().component_count<thalassa::sim::components::Health>());
+    REQUIRE(restored.world().component_count<thalassa::sim::components::CombatStats>() ==
+            original.world().component_count<thalassa::sim::components::CombatStats>());
     REQUIRE(checksum_of(restored) == checksum_of(original));
 
     // RNG continuation must match too: draw the same number of values from

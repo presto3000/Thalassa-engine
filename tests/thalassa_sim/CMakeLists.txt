@@ -2,6 +2,8 @@ add_executable(thalassa_sim_tests
     movement_tests.cpp
     spatial_index_tests.cpp
     replay_tests.cpp
+    combat_tests.cpp
+    command_tests.cpp
 )
 
 target_link_libraries(thalassa_sim_tests

@@ -16,6 +16,12 @@ option(THALASSA_BUILD_TESTS    "Build unit tests"                               
 option(THALASSA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"                    ON)
 option(THALASSA_USE_FIXED_POINT "Use fixed-point math for deterministic sim values"       OFF)
 
+# THALASSA_USE_FIXED_POINT is a build-time switch documented in
+# docs/floating_point_policy.md. Default is OFF: we use strict IEEE-754
+# double precision with pinned compiler flags (see cmake/DeterministicMath.cmake)
+# rather than fixed point. The macro is threaded through thalassa_core so the
+# scalar type can be swapped later without touching call sites.
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -87,6 +93,8 @@ if(THALASSA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/thalassa_core)
     add_subdirectory(tests/thalassa_sim)
+    add_subdirectory(tests/thalassa_net)
+    add_subdirectory(tests/thalassa_server)
 endif()
 
 message(STATUS "==================================================")

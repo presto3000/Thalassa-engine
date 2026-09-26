@@ -52,10 +52,12 @@ private:
 struct EntityTag {};
 struct PlayerTag {};
 struct TeamTag {};
+struct MatchTag {};
 
 using EntityId = StrongId<EntityTag>;
 using PlayerId = StrongId<PlayerTag>;
 using TeamId   = StrongId<TeamTag>;
+using MatchId  = StrongId<MatchTag>;
 
 // Simulation tick counter. 64-bit: at 60Hz this doesn't wrap for ~9.7 billion
 // years, so we don't need to think about rollover.
