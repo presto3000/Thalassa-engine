@@ -25,7 +25,7 @@ void populate(SimWorld& world, std::uint32_t entity_count) {
         const auto ty = world.rng().next_scalar01() * 200.0 - 100.0;
         const auto speed = 10.0 + world.rng().next_scalar01() * 20.0;
         world.world().emplace<Position>(e, Position{{sx, sy, 0.0}});
-        world.world().emplace<Destination>(e, Destination{{tx, ty, 0.0}, speed, 0.1});
+        world.world().emplace<Destination>(e, Destination{{tx, ty, 0.0}, speed, 0.01});
         // Also exercise the Milestone 2 components so their pools round-trip
         // through save_world/load_world, not just Position/Velocity/Destination.
         world.world().emplace<thalassa::sim::components::Team>(e, thalassa::sim::components::Team{

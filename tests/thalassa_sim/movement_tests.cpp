@@ -153,3 +153,87 @@ TEST_CASE("5000 units: most arrive at their destination within a generous tick b
     // Allow a small tail of slow/far units to still be in transit.
     REQUIRE(still_traveling < kEntityCount / 20);  // < 5% still traveling
 }
+
+TEST_CASE("Movement never snaps to a distant destination", "[movement][regression]") {
+    SimWorld world(1);
+    const Entity e = world.world().create_entity();
+    world.world().emplace<Position>(e, Position{ {1713.333333, 0.0, 0.0} });
+    world.world().emplace<Destination>(e, Destination{ {2200.0, 0.0, 0.0}, 5.0, 0.01 });
+
+    const auto before = world.world().get<Position>(e).value;
+    world.tick(thalassa::core::SimTick{ 0 });
+    const auto after = world.world().get<Position>(e).value;
+
+    constexpr thalassa::core::Scalar expected_step = 5.0 / 60.0;
+
+    REQUIRE(after.x == Approx(before.x + expected_step).epsilon(1e-9));
+    REQUIRE(after.y == Approx(before.y).margin(1e-9));
+    REQUIRE(after.z == Approx(before.z).margin(1e-9));
+    REQUIRE(after.x < 1714.0);
+    REQUIRE(after.x != Approx(2200.0));
+}
+
+TEST_CASE("Movement advances by a fixed distance each tick without teleporting", "[movement][regression]") {
+    SimWorld world(1);
+    const Entity e = world.world().create_entity();
+    world.world().emplace<Position>(e, Position{ {1713.333333, 0.0, 0.0} });
+    world.world().emplace<Destination>(e, Destination{ {2200.0, 0.0, 0.0}, 5.0, 0.01 });
+
+    constexpr thalassa::core::Scalar dt = 1.0 / 60.0;
+    constexpr thalassa::core::Scalar speed = 5.0;
+    constexpr thalassa::core::Scalar step = speed * dt;
+
+    thalassa::core::Scalar previous_x = world.world().get<Position>(e).value.x;
+
+    for (int tick = 0; tick < 10; ++tick) {
+        world.tick(thalassa::core::SimTick{ static_cast<std::uint64_t>(tick) });
+        const auto& position = world.world().get<Position>(e);
+
+        REQUIRE(position.value.x == Approx(previous_x + step).epsilon(1e-9));
+        REQUIRE(position.value.x - previous_x <= step + 1e-9);
+
+        previous_x = position.value.x;
+    }
+
+    REQUIRE(world.world().get<Position>(e).value.x == Approx(1713.333333 + 10.0 * step).epsilon(1e-9));
+}
+
+TEST_CASE("Two units moving toward each other snap to their destinations at the minimum distance", "[movement][regression]") {
+    SimWorld world(1);
+    const Entity a = world.world().create_entity();
+    const Entity b = world.world().create_entity();
+
+    world.world().emplace<Position>(a, Position{ {17.0, 0.0, 0.0} });
+    world.world().emplace<Destination>(a, Destination{ {17.6, 0.0, 0.0}, 4.0, 0.01 });
+
+    world.world().emplace<Position>(b, Position{ {23.0, 0.0, 0.0} });
+    world.world().emplace<Destination>(b, Destination{ {22.4, 0.0, 0.0}, 4.0, 0.01 });
+
+    constexpr thalassa::core::Scalar dt = 1.0 / 60.0;
+    constexpr thalassa::core::Scalar step = 4.0 * dt;
+
+    world.tick(thalassa::core::SimTick{ 0 });
+
+    const auto& pos_a_before = world.world().get<Position>(a);
+    const auto& pos_b_before = world.world().get<Position>(b);
+
+    REQUIRE(pos_a_before.value.x == Approx(17.0 + step).epsilon(1e-9));
+    REQUIRE(pos_b_before.value.x == Approx(23.0 - step).epsilon(1e-9));
+    REQUIRE(world.world().has<Destination>(a));
+    REQUIRE(world.world().has<Destination>(b));
+
+    for (std::uint64_t tick = 1; tick < 30; ++tick) {
+        world.tick(thalassa::core::SimTick{ tick });
+    }
+
+    const auto& pos_a_after = world.world().get<Position>(a);
+    const auto& pos_b_after = world.world().get<Position>(b);
+
+    REQUIRE(pos_a_after.value.x == Approx(17.6).epsilon(1e-9));
+    REQUIRE(pos_b_after.value.x == Approx(22.4).epsilon(1e-9));
+    REQUIRE_FALSE(world.world().has<Destination>(a));
+    REQUIRE_FALSE(world.world().has<Destination>(b));
+    REQUIRE(world.world().get<Velocity>(a).value.x == Approx(0.0));
+    REQUIRE(world.world().get<Velocity>(b).value.x == Approx(0.0));
+    REQUIRE(pos_b_after.value.x - pos_a_after.value.x == Approx(4.8).epsilon(1e-9));
+}

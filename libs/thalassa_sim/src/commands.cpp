@@ -33,11 +33,11 @@ std::vector<Entity> apply_commands(World& world, const std::vector<Command>& com
                 // exists, not a programming error, so it shouldn't abort
                 // the whole tick's command application.
                 if (world.is_alive(cmd.entity)) {
-                    // Fixed 0.5-unit arrival radius: Command doesn't carry
+                    // Fixed 0.01-unit arrival radius: Command doesn't carry
                     // a per-order arrival radius yet — add one if/when gameplay needs
                     // per-order precision control.
                     world.emplace<components::Destination>(cmd.entity,
-                                                             components::Destination{cmd.position, cmd.speed, 0.5});
+                                                             components::Destination{cmd.position, cmd.speed, 0.01});
                 }
                 break;
             }

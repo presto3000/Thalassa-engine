@@ -390,9 +390,9 @@ public:
 
         generations_ = reader.read_pod_array<Entity::GenerationType>();
 
-        const auto alive_count = reader.read_u64();
+        const std::size_t alive_count = static_cast<std::size_t>(reader.read_u64());
         alive_.assign(alive_count, false);
-        for (std::uint64_t i = 0; i < alive_count; ++i) {
+        for (std::size_t i = 0; i < alive_count; ++i) {
             alive_[i] = reader.read_pod<std::uint8_t>() != 0;
         }
 

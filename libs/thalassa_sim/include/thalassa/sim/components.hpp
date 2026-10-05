@@ -40,7 +40,7 @@ struct Velocity {
 struct Destination {
     core::math::Vec3 target{0.0, 0.0, 0.0};
     core::Scalar speed = 5.0;            // units/second
-    core::Scalar arrival_radius = 0.1;   // stop considering "arrived" within this distance
+    core::Scalar arrival_radius = 0.01;   // stop considering "arrived" within this distance
 };
 
 // --- Combat components (Milestone 2) ------------------------------------

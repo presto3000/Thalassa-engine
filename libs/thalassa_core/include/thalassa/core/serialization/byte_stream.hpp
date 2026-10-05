@@ -96,7 +96,7 @@ public:
     template <typename T>
     [[nodiscard]] std::vector<T> read_pod_array() {
         static_assert(std::is_trivially_copyable_v<T>, "read_pod_array requires a trivially copyable type");
-        const auto count = read_u64();
+        const std::size_t count = static_cast<std::size_t>(read_u64());
         std::vector<T> values(count);
         if (count > 0) {
             read_bytes(values.data(), count * sizeof(T));

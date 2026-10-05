@@ -1,0 +1,29 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.4.0",
+	"FriendlyName": "Thalassa",
+	"Description": "Deterministic RTS/MOBA simulation and networking backend. Unreal renders; Thalassa owns game state, simulation, and networking. NOTE: this plugin has not been compiled against a real Unreal Engine installation as part of its authoring -- see that doc's 'What's verified here, and what isn't' section before relying on it.",
+	"Category": "Simulation",
+	"CreatedBy": "Thalassa Project",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ThalassaEngine",
+			"Type": "Runtime",
+			"LoadingPhase": "PreDefault"
+		},
+		{
+			"Name": "ThalassaBridgeUE",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

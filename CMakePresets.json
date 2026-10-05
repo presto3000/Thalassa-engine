@@ -1,80 +1,139 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+
   "configurePresets": [
     {
       "name": "base",
       "hidden": true,
-      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
+
     {
       "name": "linux-debug",
       "inherits": "base",
       "displayName": "Linux Debug",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "THALASSA_BUILD_RENDER": "OFF"
       }
     },
+
     {
       "name": "linux-release",
       "inherits": "base",
       "displayName": "Linux Release",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "THALASSA_BUILD_RENDER": "OFF"
       }
     },
+
     {
       "name": "linux-headless-only",
       "inherits": "base",
       "displayName": "Linux Headless Server Only (no sandbox/render)",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "THALASSA_BUILD_RENDER": "OFF",
         "THALASSA_BUILD_SANDBOX": "OFF"
       }
     },
+
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64"
+    },
+
     {
       "name": "windows-debug",
-      "inherits": "base",
+      "inherits": "windows-base",
       "displayName": "Windows Debug",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "THALASSA_BUILD_RENDER": "ON"
       }
     },
+
     {
       "name": "windows-release",
-      "inherits": "base",
+      "inherits": "windows-base",
       "displayName": "Windows Release",
-      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "THALASSA_BUILD_RENDER": "ON"
       }
     }
   ],
+
   "buildPresets": [
-    { "name": "linux-debug",        "configurePreset": "linux-debug" },
-    { "name": "linux-release",      "configurePreset": "linux-release" },
-    { "name": "linux-headless-only","configurePreset": "linux-headless-only" },
-    { "name": "windows-debug",      "configurePreset": "windows-debug" },
-    { "name": "windows-release",    "configurePreset": "windows-release" }
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-headless-only",
+      "configurePreset": "linux-headless-only"
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "configuration": "RelWithDebInfo"
+    }
   ],
+
   "testPresets": [
     {
       "name": "linux-debug",
       "configurePreset": "linux-debug",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
