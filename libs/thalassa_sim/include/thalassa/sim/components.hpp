@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 
 #include "thalassa/core/math/vector.hpp"
 #include "thalassa/core/types.hpp"
@@ -15,8 +16,7 @@
 namespace thalassa::sim::components {
 
 // World-space position. Deliberately just a position, no orientation —
-// Milestone 1 has no facing-dependent gameplay yet (that arrives with
-// abilities/attacks in Milestone 2); adding Transform's rotation now would
+// adding Transform's rotation now would
 // be speculative complexity.
 struct Position {
     core::math::Vec3 value{0.0, 0.0, 0.0};
@@ -43,7 +43,7 @@ struct Destination {
     core::Scalar arrival_radius = 0.01;   // stop considering "arrived" within this distance
 };
 
-// --- Combat components (Milestone 2) ------------------------------------
+// --- Combat components  ------------------------------------
 
 // Which side an entity fights for. Deliberately a plain integer id, not an
 // enum — the engine doesn't care how many teams exist or what they mean
@@ -92,6 +92,18 @@ struct Projectile {
     core::Scalar damage = 0.0;
     std::int32_t owner_team = 0;
     core::Scalar ttl_seconds = 3.0;
+    // Explicit trailing padding is NOT possible here (layout is
+    // {double, int32, <4 pad>, double}); instead construct via make() so
+    // the padding bytes are zeroed.
+    [[nodiscard]] static Projectile make(core::Scalar dmg, std::int32_t team, core::Scalar ttl) noexcept {
+        Projectile p;
+        std::memset(static_cast<void*>(&p), 0, sizeof p);  // zero implicit padding: raw-byte snapshots/checksums must be deterministic
+        p.damage = dmg;
+        p.owner_team = team;
+        p.ttl_seconds = ttl;
+        return p;
+    }
 };
+
 
 }  // namespace thalassa::sim::components

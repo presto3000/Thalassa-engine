@@ -94,7 +94,7 @@ void combat_system(World& world, const SpatialIndex& spatial_index, core::Scalar
         const Entity projectile = world.create_entity();
         world.emplace<Position>(projectile, Position{p.origin});
         world.emplace<Velocity>(projectile, Velocity{p.direction * kProjectileSpeed});
-        world.emplace<Projectile>(projectile, Projectile{p.damage, p.owner_team, kProjectileTtlSeconds});
+        world.emplace<Projectile>(projectile, Projectile::make(p.damage, p.owner_team, kProjectileTtlSeconds));
     }
 }
 

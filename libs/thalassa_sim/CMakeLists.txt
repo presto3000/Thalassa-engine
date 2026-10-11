@@ -4,6 +4,7 @@ add_library(thalassa_sim STATIC
     src/systems/combat.cpp
     src/commands.cpp
     src/replay.cpp
+    src/replay_recording.cpp
 )
 add_library(thalassa::sim ALIAS thalassa_sim)
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -18,8 +19,7 @@ class World;  // forward declaration: apply_commands only needs a reference/poin
 // fight from recorded commands" possible (see CommandLog below and
 // tests/thalassa_sim/command_tests.cpp) — a match is fully reconstructible
 // from (rng seed, tick_duration_seconds, the sequence of Commands and
-// which tick each was applied on), nothing else, which is also exactly
-// the shape networking needs: a client's input becomes a
+// which tick each was applied on), a client's input becomes a
 // Command, the server decides which tick it's authoritative for, and
 // applying the same CommandLog to a fresh SimWorld reproduces the match.
 //
@@ -118,6 +118,18 @@ public:
     [[nodiscard]] const std::vector<Command>* commands_at(std::uint64_t tick) const {
         const auto it = by_tick_.find(tick);
         return it == by_tick_.end() ? nullptr : &it->second;
+    }
+
+    // All ticks that have at least one command, ascending. This is the
+    // ONLY sanctioned way to enumerate the log (used by replay
+    // serialization): the unordered_map's own order is unspecified, so we
+    // sort the keys, keeping file bytes identical across platforms.
+    [[nodiscard]] std::vector<std::uint64_t> ticks() const {
+        std::vector<std::uint64_t> out;
+        out.reserve(by_tick_.size());
+        for (const auto& kv : by_tick_) out.push_back(kv.first);
+        std::sort(out.begin(), out.end());
+        return out;
     }
 
     [[nodiscard]] bool empty() const noexcept { return by_tick_.empty(); }
