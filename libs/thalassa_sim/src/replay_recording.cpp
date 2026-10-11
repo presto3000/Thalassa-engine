@@ -123,6 +123,11 @@ void ReplayRecorder::step(const std::vector<Command>& commands) {
     }
 }
 
+std::vector<core::ecs::Entity> ReplayRecorder::submit(const Command& command) {
+    rec_.commands.add(sim_.ticks_simulated(), command);
+    return apply_commands(sim_.world(), {command});
+}
+
 ReplayRecording ReplayRecorder::finish() const {
     ReplayRecording out = rec_;
     out.total_ticks = sim_.ticks_simulated();

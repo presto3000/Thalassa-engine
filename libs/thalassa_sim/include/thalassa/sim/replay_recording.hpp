@@ -64,6 +64,14 @@ public:
     // Logs `commands` against the current tick and advances one tick.
     void step(const std::vector<Command>& commands = {});
 
+    // Applies `command` to the world IMMEDIATELY (so the caller gets the
+    // spawned Entity handle back right away, which an engine integration
+    // needs) and logs it against the current tick. Equivalent to passing it
+    // to the next step(): ReplayPlayer applies logged commands first thing
+    // in that same tick, and nothing runs between ticks. Returns spawned
+    // entities (see apply_commands).
+    std::vector<core::ecs::Entity> submit(const Command& command);
+
     [[nodiscard]] SimWorld& sim() noexcept { return sim_; }
     [[nodiscard]] const SimWorld& sim() const noexcept { return sim_; }
     [[nodiscard]] std::uint64_t current_tick() const noexcept { return sim_.ticks_simulated(); }
