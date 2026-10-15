@@ -9,6 +9,8 @@ namespace thalassa::sim {
 
 using core::serialization::ByteReader;
 using core::serialization::ByteWriter;
+using components::AttackProfile;
+using components::AttackState;
 using components::CombatStats;
 using components::Destination;
 using components::Health;
@@ -41,12 +43,14 @@ void save_world(const SimWorld& world, ByteWriter& writer) {
     save_component(world.world().find_pool<Position>());
     save_component(world.world().find_pool<Velocity>());
     save_component(world.world().find_pool<Destination>());
-    //additions (bumped kSnapshotVersion to 2 — see replay.hpp):
     save_component(world.world().find_pool<Team>());
     save_component(world.world().find_pool<Owner>());
     save_component(world.world().find_pool<Health>());
     save_component(world.world().find_pool<CombatStats>());
     save_component(world.world().find_pool<Projectile>());
+    // Attack-profile slice (snapshot v3):
+    save_component(world.world().find_pool<AttackProfile>());
+    save_component(world.world().find_pool<AttackState>());
 }
 
 void load_world(SimWorld& world, ByteReader& reader) {
@@ -69,6 +73,8 @@ void load_world(SimWorld& world, ByteReader& reader) {
     world.world().ensure_pool<Health>().deserialize(reader);
     world.world().ensure_pool<CombatStats>().deserialize(reader);
     world.world().ensure_pool<Projectile>().deserialize(reader);
+    world.world().ensure_pool<AttackProfile>().deserialize(reader);
+    world.world().ensure_pool<AttackState>().deserialize(reader);
 
     world.rng().restore(rng_state, rng_inc);
     world.set_ticks_simulated(ticks);

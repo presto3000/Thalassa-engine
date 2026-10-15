@@ -48,3 +48,19 @@ TEST_CASE("build_move_command converts entity handle and destination", "[command
     REQUIRE(cmd.position.x == Approx(2.0));
     REQUIRE(cmd.speed == Approx(8.0));  // 800 unreal units/sec -> 8 m/s
 }
+
+TEST_CASE("build_hero_spawn_command sets melee/ranged attack profile and converts projectile speed",
+          "[command_builders]") {
+    const UnrealVector pos{0.0, 0.0, 0.0};
+    const Command melee = thalassa::bridge::build_hero_spawn_command(pos, thalassa::core::PlayerId{1}, 0, 100.0,
+                                                                     10.0, 200.0, 1.0, true, 0.3, 0.0);
+    REQUIRE(melee.attack_kind == 0);
+    REQUIRE(melee.attack_windup_seconds == Approx(0.3));
+    REQUIRE(melee.attack_range == Approx(2.0));
+
+    const Command ranged = thalassa::bridge::build_hero_spawn_command(pos, thalassa::core::PlayerId{1}, 1, 100.0,
+                                                                      10.0, 1500.0, 1.0, false, 0.25, 3000.0);
+    REQUIRE(ranged.attack_kind == 1);
+    REQUIRE(ranged.projectile_speed == Approx(30.0));  // 3000 uu/s = 30 m/s
+    REQUIRE(ranged.attack_range == Approx(15.0));
+}

@@ -4,8 +4,8 @@
 #include "thalassa/sim/sim_world.hpp"
 
 // World-state snapshotting for SimWorld, built on thalassa_core's
-// ByteWriter/ByteReader and ComponentPool<T>::serialize/deserialize. This
-// is "serialization of world state (for save/replay
+// ByteWriter/ByteReader and ComponentPool<T>::serialize/deserialize. 
+// "serialization of world state (for save/replay
 // later)" deliverable: a snapshot captures everything needed to resume an
 // identical simulation (entity allocator state, RNG state, tick counter,
 // and every registered component pool), and reloading one and continuing
@@ -26,14 +26,14 @@
 // actually uses — that's here, not in thalassa_core, because thalassa_core
 // must stay gameplay-agnostic (see the module-boundary rule in the root
 // CMakeLists.txt comments and docs/ecs_decision.md). Adding a new
-// serializable component type later, means adding one line
+// serializable component type in a later milestone means adding one line
 // to save_world()/load_world()'s call sequence — nothing in thalassa_core
 // changes.
 
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kSnapshotMagic = 0x54484C41;  // "THLA" (Thalassa)
-inline constexpr std::uint32_t kSnapshotVersion = 2;  // v2: adds Team/Owner/Health/CombatStats/Projectile
+inline constexpr std::uint32_t kSnapshotVersion = 3;  // v2: Team/Owner/Health/CombatStats/Projectile; v3: AttackProfile/AttackState
 
 // Serializes `world` into `writer`. See the file-level comment for scope.
 void save_world(const SimWorld& world, core::serialization::ByteWriter& writer);
