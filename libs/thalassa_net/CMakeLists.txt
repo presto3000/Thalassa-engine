@@ -1,6 +1,7 @@
 add_library(thalassa_net STATIC
     src/snapshot_delta.cpp
     src/predicted_client.cpp
+    src/loopback_transport.cpp
 )
 add_library(thalassa::net ALIAS thalassa_net)
 

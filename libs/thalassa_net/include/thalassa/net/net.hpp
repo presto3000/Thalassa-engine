@@ -9,6 +9,8 @@
 // units that only need one piece are still encouraged to include just
 // that header to keep build times down.
 
+#include "thalassa/net/loopback_transport.hpp"
 #include "thalassa/net/predicted_client.hpp"
 #include "thalassa/net/relevance.hpp"
 #include "thalassa/net/snapshot_delta.hpp"
+#include "thalassa/net/transport.hpp"
