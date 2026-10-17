@@ -1,6 +1,8 @@
 add_executable(thalassa_net_tests
     snapshot_delta_tests.cpp
     predicted_client_tests.cpp
+    loopback_transport_tests.cpp
+    reliable_channel_tests.cpp
 )
 
 target_link_libraries(thalassa_net_tests

@@ -21,6 +21,14 @@ std::vector<Entity> apply_commands(World& world, const std::vector<Command>& com
                 world.emplace<components::Health>(e, components::Health{cmd.max_health, cmd.max_health});
                 world.emplace<components::CombatStats>(
                     e, components::CombatStats{cmd.attack_damage, cmd.attack_range, cmd.attack_cooldown_seconds, 0.0});
+                if (cmd.attack_kind != Command::kNoProfile) {
+                    components::AttackProfile profile;
+                    profile.kind = cmd.attack_kind;
+                    profile.windup_seconds = cmd.attack_windup_seconds;
+                    profile.projectile_speed = cmd.projectile_speed;
+                    world.emplace<components::AttackProfile>(e, profile);
+                    world.emplace<components::AttackState>(e, components::AttackState{});
+                }
                 spawned.push_back(e);
                 break;
             }
@@ -33,11 +41,12 @@ std::vector<Entity> apply_commands(World& world, const std::vector<Command>& com
                 // exists, not a programming error, so it shouldn't abort
                 // the whole tick's command application.
                 if (world.is_alive(cmd.entity)) {
-                    // Fixed 0.01-unit arrival radius: Command doesn't carry
-                    // a per-order arrival radius yet — add one if/when gameplay needs
+                    // Fixed 0.5-unit arrival radius: Command doesn't carry
+                    // a per-order arrival radius yet (kept minimal per
+                    // Milestone 2 scope) — add one if/when gameplay needs
                     // per-order precision control.
                     world.emplace<components::Destination>(cmd.entity,
-                                                             components::Destination{cmd.position, cmd.speed, 0.01});
+                                                             components::Destination{cmd.position, cmd.speed, 0.5});
                 }
                 break;
             }

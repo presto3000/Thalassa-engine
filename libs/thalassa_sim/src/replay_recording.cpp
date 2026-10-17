@@ -25,6 +25,9 @@ void write_command(ByteWriter& w, const Command& c) {
     w.write_pod(c.attack_damage);
     w.write_pod(c.attack_range);
     w.write_pod(c.attack_cooldown_seconds);
+    w.write_pod(c.attack_kind);
+    w.write_pod(c.attack_windup_seconds);
+    w.write_pod(c.projectile_speed);
 }
 
 Command read_command(ByteReader& r) {
@@ -39,6 +42,9 @@ Command read_command(ByteReader& r) {
     c.attack_damage = r.read_pod<core::Scalar>();
     c.attack_range = r.read_pod<core::Scalar>();
     c.attack_cooldown_seconds = r.read_pod<core::Scalar>();
+    c.attack_kind = r.read_pod<std::int32_t>();
+    c.attack_windup_seconds = r.read_pod<core::Scalar>();
+    c.projectile_speed = r.read_pod<core::Scalar>();
     return c;
 }
 
@@ -179,8 +185,11 @@ std::uint64_t ReplayPlayer::advance(double real_seconds) {
     return ran;
 }
 
+std::vector<SimEvent> ReplayPlayer::drain_events() { return sim_->drain_events(); }
+
 void ReplayPlayer::restart() {
     sim_ = std::make_unique<SimWorld>(rec_.seed);
+    sim_->set_events_enabled(true);
     sim_->set_tick_duration_seconds(rec_.tick_duration_seconds);
     tick_accumulator_ = 0.0;
     desynced_ = false;
@@ -190,6 +199,7 @@ void ReplayPlayer::seek(std::uint64_t tick) {
     tick = std::min(tick, rec_.total_ticks);
     if (tick < sim_->ticks_simulated()) restart();
     while (sim_->ticks_simulated() < tick) run_one_tick();
+    sim_->clear_events();  // a jump must not replay hundreds of old animations
 }
 
 bool ReplayPlayer::final_checksum_matches() const {

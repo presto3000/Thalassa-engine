@@ -19,7 +19,8 @@ class World;  // forward declaration: apply_commands only needs a reference/poin
 // fight from recorded commands" possible (see CommandLog below and
 // tests/thalassa_sim/command_tests.cpp) — a match is fully reconstructible
 // from (rng seed, tick_duration_seconds, the sequence of Commands and
-// which tick each was applied on), a client's input becomes a
+// which tick each was applied on), nothing else, which is also exactly
+// the shape Milestone 3's networking needs: a client's input becomes a
 // Command, the server decides which tick it's authoritative for, and
 // applying the same CommandLog to a fresh SimWorld reproduces the match.
 //
@@ -65,6 +66,29 @@ struct Command {
     core::Scalar attack_damage = 10.0;
     core::Scalar attack_range = 15.0;
     core::Scalar attack_cooldown_seconds = 1.0;
+
+    // SpawnUnit only: how the unit's basic attack is delivered.
+    // kNoProfile (default) = legacy instant projectile (Milestone 2).
+    // See components::AttackProfile.
+    static constexpr std::int32_t kNoProfile = -1;
+    std::int32_t attack_kind = kNoProfile;  // kNoProfile, AttackProfile::kMelee or ::kRanged
+    core::Scalar attack_windup_seconds = 0.0;
+    core::Scalar projectile_speed = 40.0;
+
+    // Chainable: Command::spawn_unit(...).as_melee(0.3) / .as_ranged(0.25, 30.0)
+    [[nodiscard]] Command as_melee(core::Scalar windup_seconds) const {
+        Command c = *this;
+        c.attack_kind = 0;  // AttackProfile::kMelee
+        c.attack_windup_seconds = windup_seconds;
+        return c;
+    }
+    [[nodiscard]] Command as_ranged(core::Scalar windup_seconds, core::Scalar projectile_speed_per_second) const {
+        Command c = *this;
+        c.attack_kind = 1;  // AttackProfile::kRanged
+        c.attack_windup_seconds = windup_seconds;
+        c.projectile_speed = projectile_speed_per_second;
+        return c;
+    }
 
     [[nodiscard]] static Command spawn_unit(core::math::Vec3 spawn_position, core::PlayerId owner_player,
                                              std::int32_t owner_team, core::Scalar max_health,
@@ -114,7 +138,8 @@ public:
     // specific, known tick key never depends on unordered_map's iteration
     // order — only the *returned vector's* order does, and that's
     // insertion order, controlled entirely by the caller. Same "index by
-    // explicit key, never iterate the container" pattern as UniformGrid
+    // explicit key, never iterate the container" pattern as UniformGrid —
+    // see determinism rule 3 in docs/floating_point_policy.md.
     [[nodiscard]] const std::vector<Command>* commands_at(std::uint64_t tick) const {
         const auto it = by_tick_.find(tick);
         return it == by_tick_.end() ? nullptr : &it->second;

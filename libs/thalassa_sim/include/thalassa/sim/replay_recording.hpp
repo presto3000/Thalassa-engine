@@ -30,7 +30,7 @@
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kReplayMagic = 0x50525448;  // "HTRP"
-inline constexpr std::uint32_t kReplayVersion = 1;
+inline constexpr std::uint32_t kReplayVersion = 2;  // v2: Command carries attack kind/windup/projectile speed
 
 // FNV-1a 64 over the complete serialized world state (save_world bytes).
 [[nodiscard]] std::uint64_t world_checksum(const SimWorld& world);
@@ -114,6 +114,11 @@ public:
     [[nodiscard]] std::uint64_t current_tick() const noexcept { return sim_->ticks_simulated(); }
     [[nodiscard]] std::uint64_t total_ticks() const noexcept { return rec_.total_ticks; }
     [[nodiscard]] const SimWorld& sim() const noexcept { return *sim_; }
+
+    // Presentation events produced by the ticks played since the last call
+    // (attack started / projectile launched / died ...). Events are always
+    // collected during playback; seek() and restart() discard pending ones.
+    [[nodiscard]] std::vector<SimEvent> drain_events();
 
     // --- integrity ---------------------------------------------------------
     // True once any checkpoint hash was reached with a different state.

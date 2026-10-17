@@ -6,6 +6,7 @@
 #include "thalassa/core/random.hpp"
 #include "thalassa/core/types.hpp"
 #include "thalassa/sim/commands.hpp"
+#include "thalassa/sim/events.hpp"
 #include "thalassa/sim/spatial_index.hpp"
 #include "thalassa/sim/systems/combat.hpp"
 #include "thalassa/sim/systems/movement.hpp"
@@ -36,7 +37,7 @@ class SimWorld {
 public:
     explicit SimWorld(std::uint64_t rng_seed) : rng_(rng_seed) {}
 
-    // Convenience overload for callers with no commands this tick, movement-only tests/sandbox) — equivalent to
+    // Convenience overload for callers with no commands this tick — equivalent to
     // tick(current_tick, {}).
     void tick(core::SimTick current_tick) { tick(current_tick, {}); }
 
@@ -47,6 +48,7 @@ public:
     // floating-point outside thalassa::core::math::strictfp.
     void tick(core::SimTick current_tick, const std::vector<Command>& commands) {
         (void)current_tick;
+        events_.set_current_tick(ticks_simulated_);
         const core::Scalar dt = tick_duration_seconds_;
 
         (void)apply_commands(ecs_world_, commands);
@@ -55,9 +57,9 @@ public:
         systems::integration_system(ecs_world_, dt);
         spatial_index_.rebuild(ecs_world_);
 
-        systems::combat_system(ecs_world_, spatial_index_, dt);
-        systems::projectile_collision_system(ecs_world_, spatial_index_, dt);
-        systems::death_system(ecs_world_);
+        systems::combat_system(ecs_world_, spatial_index_, dt, &events_);
+        systems::projectile_collision_system(ecs_world_, spatial_index_, dt, &events_);
+        systems::death_system(ecs_world_, &events_);
 
         ++ticks_simulated_;
     }
@@ -68,6 +70,13 @@ public:
     [[nodiscard]] const core::Rng& rng() const noexcept { return rng_; }
     [[nodiscard]] std::uint64_t ticks_simulated() const noexcept { return ticks_simulated_; }
     [[nodiscard]] const SpatialIndex& spatial_index() const noexcept { return spatial_index_; }
+
+    // --- Presentation events (see thalassa/sim/events.hpp) -----------------
+    // Off by default. A presentation host enables collection and drains it
+    // each frame; the simulation never reads events back.
+    void set_events_enabled(bool enabled) noexcept { events_.set_enabled(enabled); }
+    [[nodiscard]] std::vector<SimEvent> drain_events() { return events_.drain(); }
+    void clear_events() noexcept { events_.clear(); }
 
     // --- Snapshot-restore support (see thalassa/sim/replay.hpp) -----------
     //
@@ -91,6 +100,7 @@ private:
     core::ecs::World ecs_world_;
     core::Rng rng_;
     SpatialIndex spatial_index_;
+    EventBuffer events_;
     std::uint64_t ticks_simulated_ = 0;
     core::Scalar tick_duration_seconds_ = 1.0 / 60.0;
 };
