@@ -11,6 +11,7 @@
 
 #include "thalassa/net/loopback_transport.hpp"
 #include "thalassa/net/predicted_client.hpp"
+#include "thalassa/net/reliable_channel.hpp"
 #include "thalassa/net/relevance.hpp"
 #include "thalassa/net/snapshot_delta.hpp"
 #include "thalassa/net/transport.hpp"
