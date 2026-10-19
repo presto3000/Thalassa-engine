@@ -1,5 +1,6 @@
 add_library(thalassa_server STATIC
     src/headless_app.cpp
+    src/game_server.cpp
 )
 add_library(thalassa::server ALIAS thalassa_server)
 

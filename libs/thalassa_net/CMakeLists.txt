@@ -3,6 +3,8 @@ add_library(thalassa_net STATIC
     src/predicted_client.cpp
     src/loopback_transport.cpp
     src/reliable_channel.cpp
+    src/protocol.cpp
+    src/game_client.cpp
 )
 add_library(thalassa::net ALIAS thalassa_net)
 

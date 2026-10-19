@@ -9,7 +9,9 @@
 // units that only need one piece are still encouraged to include just
 // that header to keep build times down.
 
+#include "thalassa/net/game_client.hpp"
 #include "thalassa/net/loopback_transport.hpp"
+#include "thalassa/net/protocol.hpp"
 #include "thalassa/net/predicted_client.hpp"
 #include "thalassa/net/reliable_channel.hpp"
 #include "thalassa/net/relevance.hpp"
