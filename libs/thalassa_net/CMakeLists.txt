@@ -5,6 +5,7 @@ add_library(thalassa_net STATIC
     src/reliable_channel.cpp
     src/protocol.cpp
     src/game_client.cpp
+    src/udp_transport.cpp
 )
 add_library(thalassa::net ALIAS thalassa_net)
 

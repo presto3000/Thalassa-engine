@@ -17,3 +17,4 @@
 #include "thalassa/net/relevance.hpp"
 #include "thalassa/net/snapshot_delta.hpp"
 #include "thalassa/net/transport.hpp"
+#include "thalassa/net/udp_transport.hpp"

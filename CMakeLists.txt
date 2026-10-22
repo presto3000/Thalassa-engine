@@ -69,34 +69,45 @@ endif()
 # Core libraries (always built — these must remain UE5-safe: no platform
 # headers, no rendering types, no exceptions across public API boundaries)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Core libraries: Windows + Linux
+# ---------------------------------------------------------------------------
 add_subdirectory(libs/thalassa_core)
 add_subdirectory(libs/thalassa_sim)
-add_subdirectory(libs/thalassa_net)
 add_subdirectory(libs/thalassa_bridge)
 
-if(THALASSA_BUILD_SERVER)
+# ---------------------------------------------------------------------------
+# Linux-only networking and dedicated server
+# ---------------------------------------------------------------------------
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_subdirectory(libs/thalassa_net)
+
     add_subdirectory(libs/thalassa_server)
+
+    if(THALASSA_BUILD_SERVER)
+        add_subdirectory(apps/headless_server)
+    endif()
+
+    # Sandbox currently depends on net + server.
+    if(THALASSA_BUILD_SANDBOX)
+        add_subdirectory(apps/sandbox)
+    endif()
 endif()
 
-# if(THALASSA_BUILD_RENDER)
-#     add_subdirectory(libs/thalassa_render)
-# endif()
-
-if(THALASSA_BUILD_SERVER)
-    add_subdirectory(apps/headless_server)
-endif()
-
-if(THALASSA_BUILD_SANDBOX)
-    add_subdirectory(apps/sandbox)
-endif()
-
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 if(THALASSA_BUILD_TESTS)
     enable_testing()
+
     add_subdirectory(tests/thalassa_core)
     add_subdirectory(tests/thalassa_sim)
-    add_subdirectory(tests/thalassa_net)
-    add_subdirectory(tests/thalassa_server)
     add_subdirectory(tests/thalassa_bridge)
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_subdirectory(tests/thalassa_net)
+        add_subdirectory(tests/thalassa_server)
+    endif()
 endif()
 
 message(STATUS "==================================================")
