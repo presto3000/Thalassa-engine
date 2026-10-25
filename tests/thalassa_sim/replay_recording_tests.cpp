@@ -109,15 +109,22 @@ TEST_CASE("replay: bad magic is rejected", "[replay_recording]") {
 
 TEST_CASE("replay: any playback speed ends in the identical state", "[replay_recording]") {
     const ReplayRecording r = record_fight();
+
     for (const double speed : {0.5, 1.0, 2.0, 4.0, 16.0}) {
         ReplayPlayer p(r);
         p.set_speed(speed);
-        // Irregular frame times, like a real renderer.
+
         int frame = 0;
         while (!p.finished()) {
             p.advance((frame++ % 3 == 0) ? 0.033 : 0.011);
             REQUIRE(frame < 100000);
         }
+
+        INFO("Playback speed: " << speed);
+        INFO("Current tick: " << p.current_tick());
+        INFO("Expected total ticks: " << r.total_ticks);
+        INFO("Desynchronized: " << p.desynced());
+
         REQUIRE_FALSE(p.desynced());
         REQUIRE(p.final_checksum_matches());
     }

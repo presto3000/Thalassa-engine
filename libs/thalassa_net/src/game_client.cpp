@@ -68,6 +68,7 @@ void GameClient::handle_message(const ChannelMessage& message, double now) {
             welcome_tick_ = w->server_tick;
             welcome_time_ = now;
             prediction_ = std::make_unique<PredictedClient>(w->rng_seed);
+            prediction_->set_confirmed_events_enabled(events_enabled_);
             state_ = ClientState::Joined;
             break;
         }
@@ -111,6 +112,15 @@ void GameClient::advance_prediction(double now) {
     while (core::to_u64(prediction_->predicted_tick()) < target) {
         prediction_->predict_tick(prediction_->predicted_tick());
     }
+}
+
+void GameClient::set_events_enabled(bool enabled) noexcept {
+    events_enabled_ = enabled;
+    if (prediction_ != nullptr) prediction_->set_confirmed_events_enabled(enabled);
+}
+
+std::vector<sim::SimEvent> GameClient::drain_events() {
+    return prediction_ != nullptr ? prediction_->drain_confirmed_events() : std::vector<sim::SimEvent>{};
 }
 
 std::optional<core::SimTick> GameClient::issue_command(const sim::Command& command) {

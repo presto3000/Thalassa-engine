@@ -1,3 +1,8 @@
+# The dedicated server needs UdpTransport (POSIX only for now).
+if(WIN32)
+    return()
+endif()
+
 add_executable(thalassa_headless_server
     main.cpp
 )

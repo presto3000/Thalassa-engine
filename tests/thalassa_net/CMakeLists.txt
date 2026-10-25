@@ -4,8 +4,11 @@ add_executable(thalassa_net_tests
     loopback_transport_tests.cpp
     reliable_channel_tests.cpp
     protocol_tests.cpp
-    udp_transport_tests.cpp
 )
+
+if(NOT WIN32)
+    target_sources(thalassa_net_tests PRIVATE udp_transport_tests.cpp)
+endif()
 
 target_link_libraries(thalassa_net_tests
     PRIVATE

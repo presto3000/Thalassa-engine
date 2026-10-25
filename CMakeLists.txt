@@ -79,9 +79,15 @@ add_subdirectory(libs/thalassa_bridge)
 # ---------------------------------------------------------------------------
 # Linux-only networking and dedicated server
 # ---------------------------------------------------------------------------
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_subdirectory(libs/thalassa_net)
+# ---------------------------------------------------------------------------
+# Shared networking library: Windows + Linux
+# ---------------------------------------------------------------------------
+add_subdirectory(libs/thalassa_net)
 
+# ---------------------------------------------------------------------------
+# Linux-only dedicated server and sandbox
+# ---------------------------------------------------------------------------
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_subdirectory(libs/thalassa_server)
 
     if(THALASSA_BUILD_SERVER)

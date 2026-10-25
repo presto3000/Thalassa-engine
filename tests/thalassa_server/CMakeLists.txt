@@ -1,8 +1,11 @@
 add_executable(thalassa_server_tests
     match_host_tests.cpp
     game_server_tests.cpp
-    dedicated_server_tests.cpp
 )
+
+if(NOT WIN32)
+    target_sources(thalassa_server_tests PRIVATE dedicated_server_tests.cpp)
+endif()
 
 target_link_libraries(thalassa_server_tests
     PRIVATE
