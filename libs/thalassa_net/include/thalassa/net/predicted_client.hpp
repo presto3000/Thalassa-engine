@@ -4,9 +4,10 @@
 #include "thalassa/sim/commands.hpp"
 #include "thalassa/sim/sim_world.hpp"
 
-// PredictedClient: "client-side prediction +
-// reconciliation" deliverable.This implements command (input) reconciliation,
-// not state reconciliation:
+// PredictedClient: the Milestone 3 "client-side prediction +
+// reconciliation" deliverable. See docs/milestone3_networking_design.md
+// ("Reconciliation model") for the full design rationale — in short, this
+// implements command (input) reconciliation, not state reconciliation:
 // the client predicts ahead using its own commands (and an implicit "no
 // new command" guess for everyone/everything else, which is correct
 // whenever nobody issued anything new), and rolls back + replays using
@@ -25,7 +26,8 @@ public:
     explicit PredictedClient(std::uint64_t rng_seed) : confirmed_world_(rng_seed), predicted_world_(rng_seed) {}
 
     // Records a command the local player issued, targeting `target_tick`
-    // (computed by the caller as "current tick + input delay"; PredictedClient doesn't pick
+    // (computed by the caller as "current tick + input delay" — see
+    // docs/milestone3_networking_design.md; PredictedClient doesn't pick
     // the delay itself). Does NOT apply it immediately; it takes effect
     // the next time predict_tick() reaches target_tick, exactly like it
     // will on the server.
@@ -55,12 +57,21 @@ public:
     // for each of those ticks, as the server recorded it — see
     // MatchHost), then rebuilds `predicted_world_` from that corrected
     // state and re-applies the client's own still-pending commands to
-    // restore its predicted-ahead position.
+    // restore its predicted-ahead position. See
+    // docs/milestone3_networking_design.md for the full walkthrough.
     //
     // `authoritative_tick` must be >= this client's current confirmed
     // tick (reconciling "backwards" isn't meaningful — the server's
     // authoritative record only grows over time).
     void reconcile(core::SimTick authoritative_tick, const sim::CommandLog& authoritative_log);
+
+    // Presentation events (see thalassa/sim/events.hpp) come from the CONFIRMED
+    // world only: it simulates each authoritative tick exactly once, so every
+    // event is emitted exactly once and never has to be retracted. (The
+    // predicted world is rebuilt on every reconcile and would repeat them.)
+    // The price: events trail the predicted view by about one round trip.
+    void set_confirmed_events_enabled(bool enabled) noexcept { confirmed_world_.set_events_enabled(enabled); }
+    [[nodiscard]] std::vector<sim::SimEvent> drain_confirmed_events() { return confirmed_world_.drain_events(); }
 
     [[nodiscard]] const sim::SimWorld& predicted_world() const noexcept { return predicted_world_; }
     [[nodiscard]] const sim::SimWorld& confirmed_world() const noexcept { return confirmed_world_; }
@@ -74,7 +85,8 @@ private:
     core::SimTick predicted_tick_{0};
 
     // Commands this client has issued locally, keyed by their target tick.
-    // that's an acceptable
+    // Never pruned in Milestone 3's minimal implementation — see
+    // docs/milestone3_networking_design.md for why that's an acceptable
     // simplification at this scope (bounded, small growth over a match).
     sim::CommandLog pending_local_;
 };

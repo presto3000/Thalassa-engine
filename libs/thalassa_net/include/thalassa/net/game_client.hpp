@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "thalassa/core/types.hpp"
 #include "thalassa/net/predicted_client.hpp"
@@ -62,6 +63,13 @@ public:
     // window is full.
     std::optional<core::SimTick> issue_command(const sim::Command& command);
 
+    // Presentation events (attack started, projectile launched, died...) for
+    // animations/VFX. Off by default; may be switched on before or after joining.
+    // Events come from the confirmed world, so each is delivered exactly once, in
+    // tick order, about one round trip after the predicted view shows its cause.
+    void set_events_enabled(bool enabled) noexcept;
+    [[nodiscard]] std::vector<sim::SimEvent> drain_events();
+
     // Leaves politely (the server also drops silent clients on its own).
     void disconnect(double now);
 
@@ -105,6 +113,7 @@ private:
     std::uint64_t welcome_tick_ = 0;
     double welcome_time_ = 0.0;
     double tick_duration_ = 1.0 / 60.0;
+    bool events_enabled_ = false;
 };
 
 }  // namespace thalassa::net

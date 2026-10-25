@@ -1,9 +1,13 @@
 add_library(thalassa_server STATIC
     src/headless_app.cpp
     src/game_server.cpp
-    src/dedicated_server.cpp
 )
 add_library(thalassa::server ALIAS thalassa_server)
+
+# DedicatedServer sits on UdpTransport (POSIX only for now).
+if(NOT WIN32)
+    target_sources(thalassa_server PRIVATE src/dedicated_server.cpp)
+endif()
 
 target_include_directories(thalassa_server
     PUBLIC

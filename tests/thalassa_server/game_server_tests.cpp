@@ -431,3 +431,40 @@ TEST_CASE("stress: many seeds of a terrible network all converge exactly", "[net
         REQUIRE(checksum(b.confirmed_world()) == replay.final_checksum);
     }
 }
+
+TEST_CASE("events: a client's animation events are exactly the replay's, each delivered once", "[net][server][events]") {
+    World w(21, {.latency_seconds = 0.04, .jitter_seconds = 0.03, .loss_probability = 0.25, .duplicate_probability = 0.05});
+    const MatchId m = w.server->create_match(7);
+    spawn_arena(*w.server, m);
+    GameClient& a = w.add_client(m);
+    GameClient& b = w.add_client(m);
+    a.set_events_enabled(true);  // before joining: applied when the world is created
+    REQUIRE(w.run_until_joined(30.0));
+    play_fight(w, a, b);
+    REQUIRE(w.settle(m));
+
+    // Drained in several slices, as a game would every frame; the result must be the same.
+    std::vector<sim::SimEvent> got = a.drain_events();
+    CHECK(b.drain_events().empty());  // b never asked for events
+
+    const sim::ReplayRecording recording = w.server->export_replay(m);  // the player keeps a reference
+    sim::ReplayPlayer player(recording);
+    while (player.step_tick()) {}
+    const std::vector<sim::SimEvent> want = player.drain_events();
+
+    REQUIRE_FALSE(want.empty());
+    bool has_attack = false;
+    for (const auto& e : want) has_attack |= e.type == sim::SimEvent::Type::AttackStarted;
+    CHECK(has_attack);
+
+    REQUIRE(got.size() == want.size());
+    for (std::size_t i = 0; i < got.size(); ++i) {
+        CHECK(got[i].type == want[i].type);
+        CHECK(got[i].tick == want[i].tick);
+        CHECK(got[i].source == want[i].source);
+        CHECK(got[i].target == want[i].target);
+        CHECK(got[i].value == want[i].value);
+    }
+    // Nothing is delivered twice.
+    CHECK(a.drain_events().empty());
+}
