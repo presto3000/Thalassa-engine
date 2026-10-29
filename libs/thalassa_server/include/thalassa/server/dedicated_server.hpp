@@ -32,6 +32,10 @@ struct DedicatedServerConfig {
     std::uint64_t seed = 1;
     std::uint32_t players = 2;  // arena size: players 1..N get units
     std::filesystem::path replay_path;  // empty = do not save
+    // Let players spawn units. Offered unit types: 1 = footman (melee), 2 = archer (ranged),
+    // 3 = scout (legacy instant attack); each team may spawn on its own side of the arena
+    // (x in [-20,-8] for even teams, [8,20] for odd), up to 12 units per player.
+    bool client_spawns = false;
     ServerConfig server;
 };
 

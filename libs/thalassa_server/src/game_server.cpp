@@ -1,6 +1,7 @@
 #include "thalassa/server/game_server.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include "thalassa/core/assert.hpp"
 #include "thalassa/sim/components.hpp"
@@ -148,16 +149,60 @@ void GameServer::handle_hello(PeerId peer, Client& client, const net::HelloMsg& 
     (void)client.channel.send_reliable(net::encode(welcome));
 }
 
-bool GameServer::validate_and_stamp(const Client& client, const MatchState& match, sim::Command& command) const {
-    (void)match;
+bool GameServer::validate_spawn_request(Client& client, const MatchState& match, sim::Command& command) {
+    const ClientSpawnPolicy& policy = config_.client_spawns;
+    if (!policy.enabled) return false;
+
+    const UnitTemplate* unit = nullptr;
+    for (const UnitTemplate& t : policy.templates) {
+        if (t.id != 0 && t.id == command.unit_type) { unit = &t; break; }
+    }
+    if (unit == nullptr) return false;  // unknown (or 0 = "custom stats", never allowed from a client)
+
+    const core::math::Vec3 p = command.position;
+    if (std::abs(p.x) > 1.0e5 || std::abs(p.y) > 1.0e5 || std::abs(p.z) > 1.0e5) return false;
+    if (!policy.areas.empty()) {
+        bool inside = false;
+        for (const SpawnArea& a : policy.areas) {
+            if (a.team == client.team && p.x >= a.min.x && p.x <= a.max.x && p.y >= a.min.y && p.y <= a.max.y &&
+                p.z >= a.min.z && p.z <= a.max.z) {
+                inside = true;
+                break;
+            }
+        }
+        if (!inside) return false;
+    }
+
+    const std::uint64_t now_tick = core::to_u64(host_.match_tick(client.match));
+    if (client.has_spawned && now_tick < client.last_spawn_tick + policy.min_ticks_between_spawns) return false;
+
+    // Cap: units alive now + spawns accepted but not yet executed.
+    std::uint32_t count = 0;
+    host_.match_world(client.match).world().each<sim::components::Owner>(
+        [&](core::ecs::Entity, const sim::components::Owner& o) { if (o.player == client.player) ++count; });
+    for (const auto& [tick, queued] : match.scheduled) {
+        (void)tick;
+        if (queued.type == sim::Command::Type::SpawnUnit && queued.owner == client.player) ++count;
+    }
+    if (count >= policy.max_units_per_player) return false;
+
+    // Accepted: everything but position comes from the server.
+    sim::Command stamped = unit->stats;
+    stamped.type = sim::Command::Type::SpawnUnit;
+    stamped.position = p;
+    stamped.owner = client.player;
+    stamped.team = client.team;
+    stamped.unit_type = unit->id;
+    command = stamped;
+    client.has_spawned = true;
+    client.last_spawn_tick = now_tick;
+    return true;
+}
+
+bool GameServer::validate_and_stamp(Client& client, const MatchState& match, sim::Command& command) {
     switch (command.type) {
         case sim::Command::Type::SpawnUnit:
-            if (!config_.allow_client_spawns) return false;
-            // The server decides who owns what; never trust the client's claim.
-            command.owner = client.player;
-            command.team = client.team;
-            if (!(command.max_health > 0.0) || command.max_health > 1.0e6) return false;
-            return true;
+            return validate_spawn_request(client, match, command);
         case sim::Command::Type::MoveTo: {
             const auto& world = host_.match_world(client.match).world();
             if (!world.is_alive(command.entity)) return false;

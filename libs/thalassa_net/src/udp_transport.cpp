@@ -70,19 +70,16 @@ PeerId UdpTransport::register_peer(const Address& address) {
         by_id_[it->second].last_seen = ++clock_;
         return it->second;
     }
-    if (by_id_.size() >= max_peers_) {
+    if (by_id_.size() >= max_peers_ && !by_id_.empty()) {
         // Evict the peer that has been silent the longest.
         const auto oldest = std::min_element(by_id_.begin(), by_id_.end(), [](const auto& a, const auto& b) {
             return a.second.last_seen < b.second.last_seen;
         });
-        if (oldest == by_id_.end()) {
-        // Should be unreachable when max_peers_ > 0, but silences
-        // -Wnull-dereference and protects against max_peers_ == 0.
-        return next_peer_++;   // or throw / return a sentinel, depending on desired semantics
-    }
-        by_address_.erase(key_of(oldest->second.address.ip, oldest->second.address.port));
-        by_id_.erase(oldest);
-        ++stats_.peers_evicted;
+        if (oldest != by_id_.end()) {
+            by_address_.erase(key_of(oldest->second.address.ip, oldest->second.address.port));
+            by_id_.erase(oldest);
+            ++stats_.peers_evicted;
+        }
     }
     const PeerId id = next_peer_++;
     by_address_.emplace(key, id);

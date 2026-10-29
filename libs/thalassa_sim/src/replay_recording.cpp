@@ -28,6 +28,7 @@ void write_command(ByteWriter& w, const Command& c) {
     w.write_pod(c.attack_kind);
     w.write_pod(c.attack_windup_seconds);
     w.write_pod(c.projectile_speed);
+    w.write_pod(c.unit_type);
 }
 
 Command read_command(ByteReader& r) {
@@ -45,6 +46,7 @@ Command read_command(ByteReader& r) {
     c.attack_kind = r.read_pod<std::int32_t>();
     c.attack_windup_seconds = r.read_pod<core::Scalar>();
     c.projectile_speed = r.read_pod<core::Scalar>();
+    c.unit_type = r.read_pod<std::uint32_t>();
     return c;
 }
 

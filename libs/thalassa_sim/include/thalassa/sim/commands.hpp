@@ -13,7 +13,7 @@ namespace thalassa::core::ecs {
 class World;  // forward declaration: apply_commands only needs a reference/pointer here
 }  // namespace thalassa::core::ecs
 
-// "command buffer pattern (input -> commands)" deliverable:
+// The Milestone 2 "command buffer pattern (input -> commands)" deliverable:
 // gameplay-affecting input is expressed as a Command, never applied to the
 // World directly by caller code. This is what makes "full replay of a
 // fight from recorded commands" possible (see CommandLog below and
@@ -74,6 +74,24 @@ struct Command {
     std::int32_t attack_kind = kNoProfile;  // kNoProfile, AttackProfile::kMelee or ::kRanged
     core::Scalar attack_windup_seconds = 0.0;
     core::Scalar projectile_speed = 40.0;
+
+    // SpawnUnit only: which server-defined unit template a CLIENT is asking for
+    // (see GameServer's ClientSpawnPolicy). Clients are untrusted, so they never
+    // choose stats: the server looks the template up and overwrites every stat
+    // field above, then runs the command with the stamped values (unit_type is
+    // kept for information; the simulation ignores it). 0 = not a template
+    // request (server-issued spawns carry their stats directly).
+    std::uint32_t unit_type = 0;
+
+    // A client's spawn REQUEST: only unit type and position matter; the server
+    // fills in owner, team and all stats.
+    [[nodiscard]] static Command request_spawn(std::uint32_t requested_unit_type, core::math::Vec3 spawn_position) {
+        Command c;
+        c.type = Type::SpawnUnit;
+        c.position = spawn_position;
+        c.unit_type = requested_unit_type;
+        return c;
+    }
 
     // Chainable: Command::spawn_unit(...).as_melee(0.3) / .as_ranged(0.25, 30.0)
     [[nodiscard]] Command as_melee(core::Scalar windup_seconds) const {

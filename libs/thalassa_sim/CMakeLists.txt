@@ -2,6 +2,8 @@ add_library(thalassa_sim STATIC
     src/sim_world.cpp
     src/systems/movement.cpp
     src/systems/combat.cpp
+    src/nav/nav_grid.cpp
+    src/nav/pathfinder.cpp
     src/commands.cpp
     src/replay.cpp
     src/replay_recording.cpp

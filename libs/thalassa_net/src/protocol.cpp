@@ -50,6 +50,7 @@ void write_command(WireWriter& w, const sim::Command& c) {
     w.i32(c.attack_kind);
     w.f64(c.attack_windup_seconds);
     w.f64(c.projectile_speed);
+    w.u32(c.unit_type);
 }
 
 bool read_command(WireReader& r, sim::Command& out) {
@@ -71,6 +72,7 @@ bool read_command(WireReader& r, sim::Command& out) {
     c.attack_kind = r.i32();
     c.attack_windup_seconds = r.f64();
     c.projectile_speed = r.f64();
+    c.unit_type = r.u32();
     if (!r.ok()) return false;
 
     // Untrusted numbers: NaN/inf would poison the deterministic simulation.

@@ -9,7 +9,9 @@
 // Thalassa dedicated server: hosts one match over UDP until Ctrl-C / SIGTERM.
 //
 //   thalassa_headless_server [--port N] [--bind ADDR] [--seed N] [--players N]
-//                            [--replay FILE] [--max-clients N]
+//                            [--replay FILE] [--max-clients N] [--client-spawns]
+//
+// --client-spawns lets players spawn footmen/archers/scouts on their side of the arena.
 //
 // Clients connect to <host>:<port> and join the printed match id.
 
@@ -22,7 +24,7 @@ void handle_signal(int) {
 void usage() {
     THALASSA_LOG_INFO(
         "usage: thalassa_headless_server [--port N] [--bind ADDR] [--seed N] [--players N] "
-        "[--replay FILE] [--max-clients N]");
+        "[--replay FILE] [--max-clients N] [--client-spawns]");
 }
 }  // namespace
 
@@ -39,6 +41,7 @@ int main(int argc, char** argv) {
             else if (arg == "--seed" && has_value) config.seed = std::stoull(argv[++i]);
             else if (arg == "--players" && has_value) config.players = static_cast<std::uint32_t>(std::stoul(argv[++i]));
             else if (arg == "--replay" && has_value) config.replay_path = argv[++i];
+            else if (arg == "--client-spawns") config.client_spawns = true;
             else if (arg == "--max-clients" && has_value) config.server.max_clients = std::stoul(argv[++i]);
             else { usage(); return arg == "--help" ? EXIT_SUCCESS : EXIT_FAILURE; }
         } catch (const std::exception&) {

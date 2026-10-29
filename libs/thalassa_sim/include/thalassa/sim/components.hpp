@@ -16,7 +16,7 @@
 
 namespace thalassa::sim::components {
 
-// Transform's rotation now would
+// adding Transform's rotation now would
 // be speculative complexity.
 struct Position {
     core::math::Vec3 value{0.0, 0.0, 0.0};
@@ -91,22 +91,24 @@ struct CombatStats {
 struct Projectile {
     core::Scalar damage = 0.0;
     std::int32_t owner_team = 0;
+    // Explicit field in place of what used to be implicit padding. Padding bytes are NOT preserved by
+    // compiler-generated copies in optimized builds (a copy may move only the members), so a struct with
+    // padding that is serialized/hashed as raw bytes gives different checksums in Debug and Release.
+    std::int32_t reserved_ = 0;
     core::Scalar ttl_seconds = 3.0;
-    // Explicit trailing padding is NOT possible here (layout is
-    // {double, int32, <4 pad>, double}); instead construct via make() so
-    // the padding bytes are zeroed.
+
     [[nodiscard]] static Projectile make(core::Scalar dmg, std::int32_t team, core::Scalar ttl) noexcept {
         Projectile p;
-        std::memset(static_cast<void*>(&p), 0, sizeof p);  // zero implicit padding: raw-byte snapshots/checksums must be deterministic
         p.damage = dmg;
         p.owner_team = team;
         p.ttl_seconds = ttl;
         return p;
     }
 };
+static_assert(sizeof(Projectile) == 8 + 4 + 4 + 8, "Projectile must have no implicit padding");
 
 // How a unit's basic attack is delivered. OPTIONAL component: a unit WITHOUT
-// AttackProfile keeps behaviour (instantly fires a basic
+// AttackProfile keeps the Milestone 2 behaviour (instantly fires a basic
 // projectile as soon as its cooldown allows). A unit WITH one uses the
 // windup/release attack flow below, which is what animations key off.
 //
@@ -150,5 +152,6 @@ struct AttackState {
     core::Scalar windup_remaining_seconds = 0.0;
 };
 static_assert(sizeof(AttackState) == 24, "AttackState must have no implicit padding");
+
 
 }  // namespace thalassa::sim::components

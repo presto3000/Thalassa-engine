@@ -30,7 +30,7 @@
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kReplayMagic = 0x50525448;  // "HTRP"
-inline constexpr std::uint32_t kReplayVersion = 2;  // v2: Command carries attack kind/windup/projectile speed
+inline constexpr std::uint32_t kReplayVersion = 3;  // v2: Command carries attack kind/windup/projectile speed; v3: + unit_type
 
 // FNV-1a 64 over the complete serialized world state (save_world bytes).
 [[nodiscard]] std::uint64_t world_checksum(const SimWorld& world);
