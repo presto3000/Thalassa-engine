@@ -28,6 +28,7 @@ namespace thalassa::sim::nav {
 
 struct Cell {
     std::int32_t x = 0;
+    std::int32_t y = 0;
     constexpr bool operator==(const Cell&) const noexcept = default;
 };
 
