@@ -130,7 +130,10 @@ std::optional<core::SimTick> GameClient::issue_command(const sim::Command& comma
     if (!channel_.send_reliable(encode(ClientCommandMsg{core::to_u64(target), command}))) {
         return std::nullopt;  // window full: the server is not acking
     }
-    prediction_->issue_command(target, command);
+    // A spawn is NOT predicted: the new entity's id is assigned by the server's world, and
+    // guessing it would let later orders on the guess hit a different unit. The unit simply
+    // appears once the server's record reaches the spawn tick (about one round trip).
+    if (command.type != sim::Command::Type::SpawnUnit) prediction_->issue_command(target, command);
     return target;
 }
 

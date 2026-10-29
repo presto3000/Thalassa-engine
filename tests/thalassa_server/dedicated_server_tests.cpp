@@ -249,3 +249,42 @@ TEST_CASE("dedicated server: binding an occupied port fails cleanly", "[server][
     CHECK(DedicatedServer::create(cfg, &err) == nullptr);
     CHECK_FALSE(err.empty());
 }
+
+TEST_CASE("dedicated server: --client-spawns lets a player add units over real UDP", "[server][udp][e2e][spawn]") {
+    DedicatedServerConfig cfg;
+    cfg.bind_address = "127.0.0.1";
+    cfg.port = 0;
+    cfg.client_spawns = true;
+    std::string err;
+    auto server = DedicatedServer::create(cfg, &err);
+    REQUIRE(server != nullptr);
+
+    net::UdpConfig u;
+    u.bind_address = "127.0.0.1";
+    auto sock = net::UdpTransport::create(u);
+    REQUIRE(sock != nullptr);
+    const auto peer = sock->add_peer("127.0.0.1", server->port());
+    const auto t0 = std::chrono::steady_clock::now();
+    auto now = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
+    GameClient client(*sock, peer, server->match_id().value(), now());
+    auto run_until = [&](double seconds, auto&& done) {
+        const double end = now() + seconds;
+        while (now() < end) {
+            server->poll(now());
+            client.update(now());
+            if (done()) return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return false;
+    };
+
+    REQUIRE(run_until(5.0, [&] { return client.joined(); }));
+    REQUIRE(client.player_id() == PlayerId{1});
+    const std::size_t before = units_of(client.confirmed_world(), PlayerId{1}).size();  // 3 from the arena
+    REQUIRE(client.issue_command(Command::request_spawn(2, {-12.0, 4.0, 0.0})));       // archer, own side
+    REQUIRE(client.issue_command(Command::request_spawn(2, {12.0, 4.0, 0.0})));         // enemy side: refused
+    REQUIRE(run_until(5.0, [&] { return units_of(client.confirmed_world(), PlayerId{1}).size() == before + 1; }));
+    (void)run_until(0.5, [] { return false; });
+    CHECK(units_of(client.confirmed_world(), PlayerId{1}).size() == before + 1);
+    CHECK(server->game().stats().commands_rejected == 1);
+}

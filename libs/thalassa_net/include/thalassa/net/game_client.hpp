@@ -30,8 +30,10 @@
 // Like everything here it is poll-driven and takes time explicitly:
 //   client.update(now);   // every frame/tick
 //
-// Limitation: SpawnUnit commands from clients are not predictable (entity ids
-// are assigned by the server), so the server refuses them by default.
+// Spawning: a client asks for a unit with Command::request_spawn(unit_type, position);
+// the server (if its ClientSpawnPolicy allows it) picks the stats and owner. Spawns are
+// NOT predicted (entity ids come from the server's world), so the unit appears when the
+// server's record reaches the spawn tick, about one round trip after the request.
 
 namespace thalassa::net {
 

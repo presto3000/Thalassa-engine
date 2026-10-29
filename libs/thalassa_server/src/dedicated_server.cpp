@@ -31,6 +31,21 @@ void spawn_arena(GameServer& server, core::MatchId match, std::uint32_t players)
     }
 }
 
+void configure_client_spawns(ServerConfig& server, std::uint32_t players) {
+    ClientSpawnPolicy& p = server.client_spawns;
+    p.enabled = true;
+    p.templates.push_back({1, sim::Command::spawn_unit({}, core::PlayerId{}, 0, 140.0, 14.0, 2.5, 0.9).as_melee(0.25)});
+    p.templates.push_back({2, sim::Command::spawn_unit({}, core::PlayerId{}, 0, 90.0, 11.0, 15.0, 1.0).as_ranged(0.3, 30.0)});
+    p.templates.push_back({3, sim::Command::spawn_unit({}, core::PlayerId{}, 0, 100.0, 12.0, 15.0, 0.8)});
+    for (std::uint32_t team = 0; team < players; ++team) {
+        const bool left = team % 2 == 0;
+        p.areas.push_back({static_cast<std::int32_t>(team),
+                           {left ? -20.0 : 8.0, -5.0, -1.0}, {left ? -8.0 : 20.0, 15.0, 1.0}});
+    }
+    p.max_units_per_player = 12;
+    p.min_ticks_between_spawns = 10;
+}
+
 }  // namespace
 
 std::unique_ptr<DedicatedServer> DedicatedServer::create(const DedicatedServerConfig& config, std::string* error) {
@@ -44,7 +59,9 @@ std::unique_ptr<DedicatedServer> DedicatedServer::create(const DedicatedServerCo
     if (s->transport_ == nullptr) return nullptr;
 
     s->start_seconds_ = steady_seconds();
-    s->game_ = std::make_unique<GameServer>(*s->transport_, config.server, 0.0);
+    ServerConfig server_config = config.server;
+    if (config.client_spawns) configure_client_spawns(server_config, config.players);
+    s->game_ = std::make_unique<GameServer>(*s->transport_, server_config, 0.0);
     s->match_ = s->game_->create_match(config.seed);
     spawn_arena(*s->game_, s->match_, config.players);
     return s;

@@ -25,9 +25,15 @@
 //   - drops silent clients
 //
 // Authority: clients are untrusted. A MoveTo is accepted only for an entity
-// the sending player OWNS; client SpawnUnit is refused unless
-// allow_client_spawns (and then ownership/team are stamped by the server, never
-// taken from the client). Target ticks are clamped to [now, now + max lead].
+// the sending player OWNS. Client SpawnUnit is refused unless
+// ClientSpawnPolicy::enabled, and even then the client only REQUESTS a unit:
+// it names a server-defined template (Command::unit_type) and a position; the
+// server rejects unknown templates, positions outside the team's spawn area,
+// spawns faster than min_ticks_between_spawns, and spawns beyond
+// max_units_per_player (living units + spawns still waiting for their tick),
+// then overwrites owner, team and ALL stats from the template. A client can
+// therefore never choose health, damage, team or owner. Target ticks are
+// clamped to [now, now + max lead].
 // Spawning the initial units is the server's job: schedule_command().
 //
 // Every command the simulation ever runs is recorded in the match's command
@@ -37,12 +43,37 @@
 
 namespace thalassa::server {
 
+// A unit a client may ask for. `stats` is a complete spawn command (health, damage,
+// range, cooldown, attack kind/windup/projectile speed); its position, owner and team
+// are ignored and replaced per request.
+struct UnitTemplate {
+    std::uint32_t id = 0;  // what clients put in Command::unit_type (must be non-zero)
+    sim::Command stats;
+};
+
+// Where a team may spawn units (axis-aligned box, meters, Thalassa coordinates).
+struct SpawnArea {
+    std::int32_t team = 0;
+    core::math::Vec3 min{0.0, 0.0, 0.0};
+    core::math::Vec3 max{0.0, 0.0, 0.0};
+};
+
+struct ClientSpawnPolicy {
+    bool enabled = false;
+    std::vector<UnitTemplate> templates;
+    // If empty, clients may spawn anywhere. If not empty, a request must lie inside an
+    // area of the SENDER's team (a team without an area cannot spawn).
+    std::vector<SpawnArea> areas;
+    std::uint32_t max_units_per_player = 50;
+    std::uint32_t min_ticks_between_spawns = 10;  // per player (10 ticks = 6 spawns/second at 60 Hz)
+};
+
 struct ServerConfig {
     double tick_duration_seconds = 1.0 / 60.0;  // must equal SimWorld's tick duration (1/60)
     std::uint32_t batch_interval_ticks = 3;     // how often "up to tick N is final" is sent when idle
     std::size_t max_clients = 64;
     std::uint32_t max_command_lead_ticks = 120;  // furthest future tick a client may target
-    bool allow_client_spawns = false;
+    ClientSpawnPolicy client_spawns;
     double join_timeout_seconds = 5.0;  // peers that never complete a Hello are dropped
     std::uint32_t max_catchup_ticks = 8;  // ticks run per update() at most (avoids a spiral after a stall)
     net::ChannelConfig channel;
@@ -105,13 +136,16 @@ private:
         std::size_t history_cursor = 0;  // next history entry to send
         std::uint64_t last_up_to_sent = 0;
         bool leaving = false;
+        bool has_spawned = false;
+        std::uint64_t last_spawn_tick = 0;  // match tick of the last accepted spawn request
     };
 
     void receive_datagrams(double now);
     void handle_message(net::PeerId peer, Client& client, const net::ChannelMessage& message, double now);
     void handle_hello(net::PeerId peer, Client& client, const net::HelloMsg& hello);
     void handle_client_command(Client& client, const net::ClientCommandMsg& msg);
-    [[nodiscard]] bool validate_and_stamp(const Client& client, const MatchState& match, sim::Command& command) const;
+    [[nodiscard]] bool validate_and_stamp(Client& client, const MatchState& match, sim::Command& command);
+    [[nodiscard]] bool validate_spawn_request(Client& client, const MatchState& match, sim::Command& command);
     void step_matches();
     void flush_batches(Client& client);
     void prune_clients(double now);

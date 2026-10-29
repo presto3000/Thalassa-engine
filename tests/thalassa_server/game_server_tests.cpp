@@ -468,3 +468,141 @@ TEST_CASE("events: a client's animation events are exactly the replay's, each de
     // Nothing is delivered twice.
     CHECK(a.drain_events().empty());
 }
+
+// ---------------------------------------------------------------------------
+// Client spawn requests
+// ---------------------------------------------------------------------------
+namespace {
+
+ServerConfig spawn_config(std::uint32_t cap = 4) {
+    ServerConfig c;
+    auto& p = c.client_spawns;
+    p.enabled = true;
+    p.templates.push_back({1, Command::spawn_unit({}, PlayerId{}, 0, 200.0, 20.0, 3.0, 0.9).as_melee(0.2)});
+    p.templates.push_back({2, Command::spawn_unit({}, PlayerId{}, 0, 80.0, 9.0, 12.0, 1.0).as_ranged(0.3, 30.0)});
+    p.areas.push_back({0, {-20.0, -5.0, -1.0}, {-8.0, 15.0, 1.0}});
+    p.areas.push_back({1, {8.0, -5.0, -1.0}, {20.0, 15.0, 1.0}});
+    p.max_units_per_player = cap;
+    p.min_ticks_between_spawns = 10;
+    return c;
+}
+
+}  // namespace
+
+TEST_CASE("client spawn: the server picks the stats; every client converges, even on a bad network",
+          "[net][server][spawn]") {
+    World w(31, {.latency_seconds = 0.03, .jitter_seconds = 0.02, .loss_probability = 0.25}, spawn_config());
+    const MatchId m = w.server->create_match(5);
+    GameClient& a = w.add_client(m);
+    GameClient& b = w.add_client(m);
+    REQUIRE(w.run_until_joined(30.0));
+
+    // A cheating request: claims another owner/team and absurd stats. Only type + position count.
+    Command cheat = Command::request_spawn(1, {-12.0, 2.0, 0.0});
+    cheat.owner = PlayerId{2};
+    cheat.team = 1;
+    cheat.max_health = 1.0e5;
+    cheat.attack_damage = 1.0e5;
+    REQUIRE(a.issue_command(cheat));
+    REQUIRE(b.issue_command(Command::request_spawn(2, {12.0, 3.0, 0.0})));
+    w.run(1.0);
+    REQUIRE(w.settle(m));
+
+    const auto mine = units_of(a.confirmed_world(), a.player_id());
+    REQUIRE(mine.size() == 1);
+    const auto& wa = a.confirmed_world().world();
+    CHECK(wa.get<sim::components::Owner>(mine[0]).player == a.player_id());
+    CHECK(wa.get<sim::components::Team>(mine[0]).id == a.team());
+    CHECK(wa.get<Health>(mine[0]).max == 200.0);  // the template's, not 1e5
+    CHECK(wa.get<sim::components::CombatStats>(mine[0]).attack_damage == 20.0);
+    REQUIRE(wa.has<sim::components::AttackProfile>(mine[0]));
+    CHECK(wa.get<sim::components::AttackProfile>(mine[0]).kind == sim::components::AttackProfile::kMelee);
+
+    const auto theirs = units_of(a.confirmed_world(), b.player_id());
+    REQUIRE(theirs.size() == 1);
+    CHECK(wa.get<Health>(theirs[0]).max == 80.0);
+
+    const auto server_sum = checksum(w.server->host().match_world(m));
+    CHECK(checksum(a.confirmed_world()) == server_sum);
+    CHECK(checksum(b.confirmed_world()) == server_sum);
+    CHECK(w.server->stats().commands_accepted == 2);
+
+    // The fresh unit can be ordered by its owner (and only by its owner).
+    w.server->set_ticking(true);  // settle() froze the simulation
+    REQUIRE(a.issue_command(Command::move_to(mine[0], {-10.0, 8.0, 0.0}, 6.0)));
+    REQUIRE(b.issue_command(Command::move_to(mine[0], {0.0, 0.0, 0.0}, 6.0)));  // not b's unit
+    w.run(2.0);
+    REQUIRE(w.settle(m));
+    const auto& pos = a.confirmed_world().world().get<Position>(mine[0]).value;
+    CHECK(pos.y > 4.0);  // walked toward y = 8, was not dragged to the origin
+    CHECK(w.server->stats().commands_rejected == 1);
+    CHECK(checksum(a.confirmed_world()) == checksum(w.server->host().match_world(m)));
+
+    // The server's own replay of it all is exact.
+    const sim::ReplayRecording recording = w.server->export_replay(m);
+    sim::ReplayPlayer player(recording);
+    while (player.step_tick()) {}
+    CHECK(player.final_checksum_matches());
+}
+
+TEST_CASE("client spawn: bad requests are rejected and change nothing", "[net][server][spawn]") {
+    World w(32, {.latency_seconds = 0.01}, spawn_config(/*cap=*/3));
+    const MatchId m = w.server->create_match(5);
+    GameClient& a = w.add_client(m);  // player 1, team 0: may spawn in x in [-20,-8]
+    REQUIRE(w.run_until_joined());
+
+    auto try_spawn = [&](const Command& c) {
+        REQUIRE(a.issue_command(c));
+        w.run(0.4);  // longer than the rate limit
+    };
+    auto my_units = [&] { return units_of(w.server->host().match_world(m), a.player_id()).size(); };
+
+    try_spawn(Command::request_spawn(99, {-12.0, 2.0, 0.0}));   // unknown template
+    try_spawn(Command::request_spawn(0, {-12.0, 2.0, 0.0}));    // "custom stats"
+    try_spawn(Command::request_spawn(1, {12.0, 2.0, 0.0}));     // enemy team's area
+    try_spawn(Command::request_spawn(1, {-12.0, 50.0, 0.0}));   // outside every area
+    Command custom = Command::spawn_unit({-12.0, 2.0, 0.0}, PlayerId{1}, 0, 1.0e5, 1.0e5, 50.0, 0.1);
+    try_spawn(custom);                                           // type 0 with its own stats
+    CHECK(my_units() == 0);
+    CHECK(w.server->stats().commands_rejected == 5);
+    CHECK(w.server->stats().commands_accepted == 0);
+
+    // Rate limit: two requests in the same instant, only the first counts.
+    REQUIRE(a.issue_command(Command::request_spawn(1, {-12.0, 1.0, 0.0})));
+    REQUIRE(a.issue_command(Command::request_spawn(1, {-12.0, 2.0, 0.0})));
+    w.run(0.5);
+    CHECK(my_units() == 1);
+
+    // Cap of 3: the fourth request is refused no matter how patient we are.
+    for (int i = 0; i < 4; ++i) try_spawn(Command::request_spawn(2, {-14.0, 3.0 + i, 0.0}));
+    CHECK(my_units() == 3);
+
+    REQUIRE(w.settle(m));
+    CHECK(checksum(a.confirmed_world()) == checksum(w.server->host().match_world(m)));
+}
+
+TEST_CASE("client spawn: off by default, and a flood cannot exceed the cap", "[net][server][spawn]") {
+    {
+        World w(33, {.latency_seconds = 0.01});  // default config: spawning disabled
+        const MatchId m = w.server->create_match(5);
+        GameClient& a = w.add_client(m);
+        REQUIRE(w.run_until_joined());
+        REQUIRE(a.issue_command(Command::request_spawn(1, {-12.0, 2.0, 0.0})));
+        w.run(0.5);
+        CHECK(units_of(w.server->host().match_world(m), a.player_id()).empty());
+        CHECK(w.server->stats().commands_rejected == 1);
+    }
+    {
+        ServerConfig cfg = spawn_config(/*cap=*/5);
+        cfg.client_spawns.min_ticks_between_spawns = 0;  // only the cap protects us
+        World w(34, {.latency_seconds = 0.02}, cfg);
+        const MatchId m = w.server->create_match(5);
+        GameClient& a = w.add_client(m);
+        REQUIRE(w.run_until_joined());
+        for (int i = 0; i < 40; ++i) {
+            (void)a.issue_command(Command::request_spawn(1, {-12.0, 2.0, 0.0}));  // window may fill: fine
+        }
+        w.run(2.0);
+        CHECK(units_of(w.server->host().match_world(m), a.player_id()).size() == 5);
+    }
+}
