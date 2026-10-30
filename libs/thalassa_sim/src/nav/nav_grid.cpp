@@ -1,6 +1,8 @@
 #include "thalassa/sim/nav/nav_grid.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 #include "thalassa/core/assert.hpp"
@@ -134,6 +136,94 @@ std::optional<Cell> NavGrid::nearest_free_cell(Cell from, std::int32_t max_radiu
         }
     }
     return best;
+}
+
+bool NavGrid::segment_clear(const core::math::Vec3& a, const core::math::Vec3& b) const noexcept {
+    // Work in cell units so one cell is 1.0 wide.
+    const core::Scalar ax = (a.x - origin_x_) / cell_size_;
+    const core::Scalar ay = (a.y - origin_y_) / cell_size_;
+    const core::Scalar bx = (b.x - origin_x_) / cell_size_;
+    const core::Scalar by = (b.y - origin_y_) / cell_size_;
+    const Cell ca = to_cell_unclamped(a);
+    const Cell cb = to_cell_unclamped(b);
+    if (blocked(ca) || blocked(cb)) return false;
+    if (ca == cb) return true;
+
+    const core::Scalar dx = bx - ax;
+    const core::Scalar dy = by - ay;
+    const std::int32_t step_x = dx > 0.0 ? 1 : (dx < 0.0 ? -1 : 0);
+    const std::int32_t step_y = dy > 0.0 ? 1 : (dy < 0.0 ? -1 : 0);
+    constexpr core::Scalar kInf = 1.0e300;
+    // Parametric t in [0,1] at which the segment crosses the next vertical / horizontal grid line.
+    core::Scalar t_delta_x = step_x != 0 ? std::fabs(1.0 / dx) : kInf;
+    core::Scalar t_delta_y = step_y != 0 ? std::fabs(1.0 / dy) : kInf;
+    core::Scalar t_max_x = kInf;
+    core::Scalar t_max_y = kInf;
+    if (step_x > 0) t_max_x = (static_cast<core::Scalar>(ca.x) + 1.0 - ax) / dx;
+    if (step_x < 0) t_max_x = (ax - static_cast<core::Scalar>(ca.x)) / -dx;
+    if (step_y > 0) t_max_y = (static_cast<core::Scalar>(ca.y) + 1.0 - ay) / dy;
+    if (step_y < 0) t_max_y = (ay - static_cast<core::Scalar>(ca.y)) / -dy;
+
+    Cell cur = ca;
+    const std::int64_t max_steps = static_cast<std::int64_t>(std::abs(cb.x - ca.x)) +
+                                   static_cast<std::int64_t>(std::abs(cb.y - ca.y)) + 2;
+    for (std::int64_t i = 0; i < max_steps && !(cur == cb); ++i) {
+        // Never step past the end cell on an axis that already matches it.
+        const bool x_done = cur.x == cb.x;
+        const bool y_done = cur.y == cb.y;
+        if (!x_done && !y_done && t_max_x == t_max_y) {
+            // Exactly through a grid corner: the segment touches both side cells and the diagonal one.
+            if (blocked(Cell{cur.x + step_x, cur.y}) || blocked(Cell{cur.x, cur.y + step_y}) ||
+                blocked(Cell{cur.x + step_x, cur.y + step_y})) {
+                return false;
+            }
+            cur.x += step_x;
+            cur.y += step_y;
+            t_max_x += t_delta_x;
+            t_max_y += t_delta_y;
+        } else if (!x_done && (y_done || t_max_x < t_max_y)) {
+            cur.x += step_x;
+            t_max_x += t_delta_x;
+            if (blocked(cur)) return false;
+        } else {
+            cur.y += step_y;
+            t_max_y += t_delta_y;
+            if (blocked(cur)) return false;
+        }
+    }
+    return cur == cb;
+}
+
+NavGrid NavGrid::inflated(core::Scalar radius) const {
+    NavGrid out = *this;
+    if (!(radius > 0.0) || !finite(radius)) return out;
+
+    // Offsets (in cells) whose cell center lies closer than `radius` to a blocked cell's square.
+    const core::Scalar r_cells = radius / cell_size_;
+    const std::int32_t reach = static_cast<std::int32_t>(std::ceil(r_cells + 0.5));
+    struct Offset { std::int32_t dx, dy; };
+    std::vector<Offset> offsets;
+    for (std::int32_t dy = -reach; dy <= reach; ++dy) {
+        for (std::int32_t dx = -reach; dx <= reach; ++dx) {
+            const core::Scalar ex = std::max(0.0, static_cast<core::Scalar>(std::abs(dx)) - 0.5);
+            const core::Scalar ey = std::max(0.0, static_cast<core::Scalar>(std::abs(dy)) - 0.5);
+            if (ex * ex + ey * ey < r_cells * r_cells) offsets.push_back(Offset{dx, dy});
+        }
+    }
+
+    // Gather: a cell is blocked if any offset lands on a blocked cell or outside the map.
+    for (std::int32_t y = 0; y < height_; ++y) {
+        for (std::int32_t x = 0; x < width_; ++x) {
+            if (blocked(Cell{x, y})) continue;
+            for (const Offset& o : offsets) {
+                if (blocked(Cell{x + o.dx, y + o.dy})) {
+                    out.set_blocked(Cell{x, y}, true);
+                    break;
+                }
+            }
+        }
+    }
+    return out;
 }
 
 std::uint64_t NavGrid::hash() const noexcept {

@@ -43,6 +43,27 @@ struct LowerPriority {
 
 }  // namespace
 
+std::vector<core::math::Vec3> smooth_waypoints(const NavGrid& grid, const core::math::Vec3& start,
+                                               const std::vector<core::math::Vec3>& waypoints) {
+    std::vector<core::math::Vec3> out;
+    const std::size_t n = waypoints.size();
+    core::math::Vec3 anchor = start;
+    std::size_t i = 0;
+    while (i < n) {
+        std::size_t pick = i;  // fallback: the next original waypoint (a legal single grid step)
+        for (std::size_t j = n - 1; j > i; --j) {
+            if (grid.segment_clear(anchor, waypoints[j])) {
+                pick = j;
+                break;
+            }
+        }
+        out.push_back(waypoints[pick]);
+        anchor = waypoints[pick];
+        i = pick + 1;
+    }
+    return out;
+}
+
 void Pathfinder::prepare() {
     if (nodes_.size() != grid_->cell_count()) {
         nodes_.assign(grid_->cell_count(), Node{});
@@ -116,6 +137,8 @@ PathResult Pathfinder::find_path(const core::math::Vec3& start, const core::math
         if (result.expansions >= options.max_expansions) break;
         ++result.expansions;
 
+        if (options.record_explored) result.explored.push_back(grid.cell_of(static_cast<std::size_t>(cur.index)));
+
         if (cur.h < best_h || (cur.h == best_h && cur.g < best_g)) {
             best_h = cur.h;
             best_idx = cur.index;
@@ -168,6 +191,8 @@ PathResult Pathfinder::find_path(const core::math::Vec3& start, const core::math
             result.waypoints.back() = exact;
         }
     }
+    if (options.keep_raw) result.raw_waypoints = result.waypoints;
+    if (options.smooth) result.waypoints = smooth_waypoints(grid, start, result.waypoints);
     return result;
 }
 

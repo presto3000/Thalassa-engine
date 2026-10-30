@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 #include <cstdint>
 #include <queue>
 #include <set>
@@ -26,6 +27,13 @@ namespace {
 NavGrid open_grid(int w, int h) { return NavGrid(1.0, 0.0, 0.0, w, h); }
 
 Vec3 at(double x, double y) { return Vec3{x, y, 0.0}; }
+
+// Step-1 tests look at the raw grid path.
+PathOptions raw() {
+    PathOptions o;
+    o.smooth = false;
+    return o;
+}
 
 // Independent reference: Dijkstra with the same move rules; returns best cost in tenths, -1 if unreachable.
 int reference_cost(const NavGrid& g, Cell from, Cell to) {
@@ -189,20 +197,20 @@ TEST_CASE("pathfinder: open field, straight and diagonal", "[nav][path]") {
     const NavGrid g = open_grid(20, 20);
     Pathfinder f(g);
 
-    const PathResult straight = f.find_path(at(1.5, 1.5), at(8.5, 1.5));
+    const PathResult straight = f.find_path(at(1.5, 1.5), at(8.5, 1.5), raw());
     REQUIRE(straight.status == PathStatus::Found);
     CHECK(straight.cost == 70);
     REQUIRE(straight.waypoints.size() == 7);
     CHECK(straight.waypoints.back() == at(8.5, 1.5));  // exact goal point
     require_legal_steps(g, at(1.5, 1.5), straight);
 
-    const PathResult diag = f.find_path(at(1.5, 1.5), at(6.2, 6.9));
+    const PathResult diag = f.find_path(at(1.5, 1.5), at(6.2, 6.9), raw());
     REQUIRE(diag.status == PathStatus::Found);
     CHECK(diag.cost == 5 * 14);
     CHECK(diag.waypoints.back() == at(6.2, 6.9));
 
     // Start and goal in the same cell: one waypoint, the goal itself.
-    const PathResult same = f.find_path(at(3.1, 3.1), at(3.9, 3.4));
+    const PathResult same = f.find_path(at(3.1, 3.1), at(3.9, 3.4), raw());
     REQUIRE(same.status == PathStatus::Found);
     REQUIRE(same.waypoints.size() == 1);
     CHECK(same.waypoints[0] == at(3.9, 3.4));
@@ -215,7 +223,7 @@ TEST_CASE("pathfinder: walks around a wall through the gap", "[nav][path]") {
     g.set_blocked(Cell{10, 15}, false);          // one gap
     Pathfinder f(g);
 
-    const PathResult r = f.find_path(at(2.5, 2.5), at(17.5, 2.5));
+    const PathResult r = f.find_path(at(2.5, 2.5), at(17.5, 2.5), raw());
     REQUIRE(r.status == PathStatus::Found);
     require_legal_steps(g, at(2.5, 2.5), r);
     bool through_gap = false;
@@ -234,7 +242,7 @@ TEST_CASE("pathfinder: no cutting corners between diagonal blockers", "[nav][pat
     g.set_blocked(Cell{2, 1}, true);
     g.set_blocked(Cell{1, 2}, true);  // (1,1) -> (2,2) would squeeze between two blocked corners
     Pathfinder f(g);
-    const PathResult r = f.find_path(at(1.5, 1.5), at(2.5, 2.5));
+    const PathResult r = f.find_path(at(1.5, 1.5), at(2.5, 2.5), raw());
     REQUIRE(r.status == PathStatus::Found);
     CHECK(r.waypoints.size() > 1);  // had to go around instead of the 1-step diagonal
     require_legal_steps(g, at(1.5, 1.5), r);
@@ -245,7 +253,7 @@ TEST_CASE("pathfinder: unreachable goal gives a partial path to the closest cell
     (void)g.block_rect(10.0, 0.0, 11.0, 20.0);  // solid wall, no gap
     Pathfinder f(g);
 
-    const PathResult r = f.find_path(at(2.5, 10.5), at(17.5, 10.5));
+    const PathResult r = f.find_path(at(2.5, 10.5), at(17.5, 10.5), raw());
     REQUIRE(r.status == PathStatus::Partial);
     REQUIRE_FALSE(r.waypoints.empty());
     const Cell last = *g.to_cell(r.waypoints.back());
@@ -259,12 +267,12 @@ TEST_CASE("pathfinder: blocked goal and blocked start are snapped to free cells"
     (void)g.block_rect(8.0, 8.0, 12.0, 12.0);  // a solid 4x4 block
     Pathfinder f(g);
 
-    const PathResult to_block = f.find_path(at(2.5, 2.5), at(10.0, 10.0));  // goal inside the block
+    const PathResult to_block = f.find_path(at(2.5, 2.5), at(10.0, 10.0), raw());  // goal inside the block
     REQUIRE(to_block.status == PathStatus::Found);
     CHECK(g.free(*g.to_cell(to_block.waypoints.back())));
     require_legal_steps(g, at(2.5, 2.5), to_block);
 
-    const PathResult from_block = f.find_path(at(10.0, 10.0), at(2.5, 2.5));  // start inside the block
+    const PathResult from_block = f.find_path(at(10.0, 10.0), at(2.5, 2.5), raw());  // start inside the block
     REQUIRE(from_block.status == PathStatus::Found);
     CHECK(g.free(*g.to_cell(from_block.waypoints.front())));  // first move: out of the obstacle
     CHECK(from_block.waypoints.back() == at(2.5, 2.5));
@@ -273,7 +281,7 @@ TEST_CASE("pathfinder: blocked goal and blocked start are snapped to free cells"
     NavGrid solid = open_grid(10, 10);
     (void)solid.block_rect(0.0, 0.0, 10.0, 10.0);
     Pathfinder fs(solid);
-    CHECK(fs.find_path(at(2.5, 2.5), at(7.5, 7.5)).status == PathStatus::NoPath);
+    CHECK(fs.find_path(at(2.5, 2.5), at(7.5, 7.5), raw()).status == PathStatus::NoPath);
 
     // Outside the map entirely.
     const NavGrid small = open_grid(5, 5);
@@ -287,13 +295,13 @@ TEST_CASE("pathfinder: an enclosed start cannot move", "[nav][path]") {
     (void)g.block_rect(3.0, 3.0, 6.0, 6.0);
     g.set_blocked(Cell{4, 4}, false);  // a single free cell inside a solid block
     Pathfinder f(g);
-    CHECK(f.find_path(at(4.5, 4.5), at(0.5, 0.5)).status == PathStatus::NoPath);
+    CHECK(f.find_path(at(4.5, 4.5), at(0.5, 0.5), raw()).status == PathStatus::NoPath);
 }
 
 TEST_CASE("pathfinder: the expansion budget returns a partial path", "[nav][path]") {
     const NavGrid g = open_grid(100, 100);
     Pathfinder f(g);
-    const PathResult full = f.find_path(at(1.5, 1.5), at(98.5, 98.5));
+    const PathResult full = f.find_path(at(1.5, 1.5), at(98.5, 98.5), raw());
     REQUIRE(full.status == PathStatus::Found);
 
     PathOptions tight;
@@ -317,7 +325,7 @@ TEST_CASE("pathfinder: optimal against an independent Dijkstra on 200 random maz
         g.set_blocked(Cell{1, 1}, false);
         g.set_blocked(Cell{22, 22}, false);
         Pathfinder f(g);
-        const PathResult r = f.find_path(at(1.5, 1.5), at(22.5, 22.5));
+        const PathResult r = f.find_path(at(1.5, 1.5), at(22.5, 22.5), raw());
         const int want = reference_cost(g, Cell{1, 1}, Cell{22, 22});
         INFO("seed " << seed);
         if (want < 0) {
@@ -343,8 +351,8 @@ TEST_CASE("pathfinder: deterministic, and scratch reuse never changes an answer"
         const Vec3 a = at(static_cast<double>(rng.next_u32() % 40) + 0.5, static_cast<double>(rng.next_u32() % 40) + 0.5);
         const Vec3 b = at(static_cast<double>(rng.next_u32() % 40) + 0.5, static_cast<double>(rng.next_u32() % 40) + 0.5);
         Pathfinder fresh(g);
-        const PathResult x = reused.find_path(a, b);
-        const PathResult y = fresh.find_path(a, b);
+        const PathResult x = reused.find_path(a, b, raw());
+        const PathResult y = fresh.find_path(a, b, raw());
         REQUIRE(x.status == y.status);
         REQUIRE(x.cost == y.cost);
         REQUIRE(x.expansions == y.expansions);
@@ -355,9 +363,298 @@ TEST_CASE("pathfinder: deterministic, and scratch reuse never changes an answer"
 TEST_CASE("pathfinder: follows map edits between queries", "[nav][path]") {
     NavGrid g = open_grid(20, 5);
     Pathfinder f(g);
-    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5)).cost == 170);
+    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5), raw()).cost == 170);
     (void)g.block_rect(10.0, 0.0, 11.0, 5.0);  // a wall appears
-    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5)).status == PathStatus::Partial);
+    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5), raw()).status == PathStatus::Partial);
     (void)g.block_rect(10.0, 0.0, 11.0, 5.0, false);  // and goes away
-    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5)).cost == 170);
+    CHECK(f.find_path(at(1.5, 2.5), at(18.5, 2.5), raw()).cost == 170);
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: line of sight, smoothing, unit size
+// ---------------------------------------------------------------------------
+namespace {
+
+double path_length(const Vec3& start, const std::vector<Vec3>& wps) {
+    double len = 0.0;
+    Vec3 prev = start;
+    for (const Vec3& w : wps) {
+        len += (w - prev).length();
+        prev = w;
+    }
+    return len;
+}
+
+// Reference for segment_clear: sample densely; any sample on a blocked cell => not clear.
+bool sampled_clear(const NavGrid& g, const Vec3& a, const Vec3& b) {
+    const int n = 4000;
+    for (int i = 0; i <= n; ++i) {
+        const double t = static_cast<double>(i) / n;
+        const Vec3 p{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 0.0};
+        const auto c = g.to_cell(p);
+        if (!c || g.blocked(*c)) return false;
+    }
+    return true;
+}
+
+NavGrid random_grid(std::uint64_t seed, int w, int h, std::uint32_t density_percent) {
+    core::Rng rng(seed);
+    NavGrid g = open_grid(w, h);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            if (rng.next_u32() % 100 < density_percent) g.set_blocked(Cell{x, y}, true);
+        }
+    }
+    return g;
+}
+
+}  // namespace
+
+TEST_CASE("segment_clear: basics, corners and edges", "[nav][los]") {
+    NavGrid g = open_grid(10, 10);
+    CHECK(g.segment_clear(at(0.5, 0.5), at(9.5, 9.5)));
+    CHECK(g.segment_clear(at(0.5, 0.5), at(0.5, 0.5)));
+    CHECK_FALSE(g.segment_clear(at(0.5, 0.5), at(10.5, 0.5)));  // ends outside the map
+    CHECK_FALSE(g.segment_clear(at(-1.0, 0.5), at(2.5, 0.5)));  // starts outside
+
+    g.set_blocked(Cell{5, 5}, true);
+    CHECK_FALSE(g.segment_clear(at(0.5, 5.5), at(9.5, 5.5)));  // straight through the block
+    CHECK(g.segment_clear(at(0.5, 4.5), at(9.5, 4.5)));        // the row below is free
+    CHECK_FALSE(g.segment_clear(at(5.5, 5.5), at(8.5, 8.5)));  // starts inside it
+    // Clips only the block's corner sliver: still blocked (conservative).
+    CHECK_FALSE(g.segment_clear(at(4.0, 6.2), at(6.2, 4.0)));
+    // Passes just below its corner (the x + y = 10 line would touch it).
+    CHECK(g.segment_clear(at(3.0, 6.5), at(6.5, 3.0)));  // x + y = 9.5: misses the block (x + y >= 10)
+
+    // Exactly through a grid corner between two diagonal blockers: not clear.
+    NavGrid d = open_grid(6, 6);
+    d.set_blocked(Cell{2, 1}, true);
+    d.set_blocked(Cell{1, 2}, true);
+    CHECK_FALSE(d.segment_clear(at(1.5, 1.5), at(2.5, 2.5)));
+    // Exactly through a corner with everything free: fine.
+    NavGrid f = open_grid(6, 6);
+    CHECK(f.segment_clear(at(1.5, 1.5), at(3.5, 3.5)));
+    // Corner crossing but one side blocked: not clear.
+    f.set_blocked(Cell{2, 1}, true);
+    CHECK_FALSE(f.segment_clear(at(1.5, 1.5), at(3.5, 3.5)));
+}
+
+TEST_CASE("segment_clear: never says clear when a sampled walk hits an obstacle; symmetric", "[nav][los][stress]") {
+    for (std::uint64_t seed = 1; seed <= 60; ++seed) {
+        const NavGrid g = random_grid(seed, 20, 20, 20 + static_cast<std::uint32_t>(seed % 20));
+        core::Rng rng(seed * 7919);
+        for (int i = 0; i < 150; ++i) {
+            const Vec3 a = at(rng.next_u32() % 2000 / 100.0, rng.next_u32() % 2000 / 100.0);
+            const Vec3 b = at(rng.next_u32() % 2000 / 100.0, rng.next_u32() % 2000 / 100.0);
+            const bool ab = g.segment_clear(a, b);
+            INFO("seed " << seed << " i " << i);
+            CHECK(ab == g.segment_clear(b, a));
+            if (ab) CHECK(sampled_clear(g, a, b));  // soundness: no false "clear"
+        }
+    }
+}
+
+TEST_CASE("smoothing: open field collapses to the destination", "[nav][smooth]") {
+    const NavGrid g = open_grid(30, 30);
+    Pathfinder f(g);
+    const PathResult r = f.find_path(at(1.5, 1.5), at(25.2, 17.7));
+    REQUIRE(r.status == PathStatus::Found);
+    REQUIRE(r.waypoints.size() == 1);
+    CHECK(r.waypoints[0] == at(25.2, 17.7));
+
+    PathOptions o;
+    o.keep_raw = true;
+    const PathResult both = f.find_path(at(1.5, 1.5), at(25.2, 17.7), o);
+    CHECK(both.raw_waypoints.size() > both.waypoints.size());
+    CHECK(both.raw_waypoints.back() == both.waypoints.back());
+}
+
+TEST_CASE("smoothing: bends only around obstacles", "[nav][smooth]") {
+    NavGrid g = open_grid(30, 30);
+    (void)g.block_rect(14.0, 5.0, 16.0, 30.0);  // wall with open ground below y = 5
+    Pathfinder f(g);
+    PathOptions o;
+    o.keep_raw = true;
+    const PathResult r = f.find_path(at(3.5, 20.5), at(26.5, 20.5), o);
+    REQUIRE(r.status == PathStatus::Found);
+    CHECK(r.waypoints.size() <= 4);
+    CHECK(r.waypoints.size() < r.raw_waypoints.size());
+    CHECK(r.waypoints.back() == at(26.5, 20.5));
+    Vec3 prev = at(3.5, 20.5);
+    for (const Vec3& wp : r.waypoints) {
+        CHECK(g.segment_clear(prev, wp));
+        prev = wp;
+    }
+    CHECK(path_length(at(3.5, 20.5), r.waypoints) <= path_length(at(3.5, 20.5), r.raw_waypoints) + 1e-9);
+}
+
+TEST_CASE("smoothing: on 100 random mazes it is legal, never longer, never more points", "[nav][smooth][stress]") {
+    for (std::uint64_t seed = 1; seed <= 100; ++seed) {
+        NavGrid g = random_grid(seed, 30, 30, 15 + static_cast<std::uint32_t>(seed % 25));
+        g.set_blocked(Cell{1, 1}, false);
+        g.set_blocked(Cell{28, 28}, false);
+        Pathfinder f(g);
+        PathOptions o;
+        o.keep_raw = true;
+        const Vec3 start = at(1.5, 1.5);
+        const PathResult r = f.find_path(start, at(28.5, 28.5), o);
+        INFO("seed " << seed);
+        if (r.waypoints.empty()) continue;
+        CHECK(r.waypoints.size() <= r.raw_waypoints.size());
+        CHECK(path_length(start, r.waypoints) <= path_length(start, r.raw_waypoints) + 1e-9);
+        CHECK(r.waypoints.back() == r.raw_waypoints.back());
+        Vec3 prev = start;
+        for (const Vec3& wp : r.waypoints) {
+            CHECK(g.segment_clear(prev, wp));
+            CHECK(sampled_clear(g, prev, wp));
+            prev = wp;
+        }
+    }
+}
+
+TEST_CASE("smoothing: a unit starting inside an obstacle keeps a legal first move", "[nav][smooth]") {
+    NavGrid g = open_grid(20, 20);
+    (void)g.block_rect(8.0, 8.0, 12.0, 12.0);
+    Pathfinder f(g);
+    const PathResult r = f.find_path(at(10.0, 10.0), at(2.5, 2.5));
+    REQUIRE(r.status == PathStatus::Found);
+    REQUIRE_FALSE(r.waypoints.empty());
+    CHECK(g.free(*g.to_cell(r.waypoints.front())));
+    CHECK(r.waypoints.back() == at(2.5, 2.5));
+}
+
+TEST_CASE("explored cells can be recorded for debugging, and cost nothing when off", "[nav][debug]") {
+    NavGrid g = open_grid(30, 30);
+    (void)g.block_rect(14.0, 5.0, 16.0, 30.0);
+    Pathfinder f(g);
+    PathOptions o;
+    o.record_explored = true;
+    const PathResult with = f.find_path(at(3.5, 20.5), at(26.5, 20.5), o);
+    const PathResult without = f.find_path(at(3.5, 20.5), at(26.5, 20.5));
+    CHECK(with.explored.size() == with.expansions);
+    CHECK(without.explored.empty());
+    CHECK(with.waypoints == without.waypoints);  // recording never changes the answer
+    for (const Cell& c : with.explored) CHECK(g.free(c));
+    // Distinct cells only: A* expands each cell at most once.
+    std::set<std::pair<int, int>> seen;
+    for (const Cell& c : with.explored) seen.insert({c.x, c.y});
+    CHECK(seen.size() == with.explored.size());
+}
+
+TEST_CASE("inflation: grows obstacles and the border by the unit radius", "[nav][inflate]") {
+    NavGrid g = open_grid(15, 15);
+    g.set_blocked(Cell{7, 7}, true);
+
+    CHECK(g.inflated(0.0) == g);   // nothing to do
+    CHECK(g.inflated(-1.0) == g);
+
+    // Radius 1 cell: the 8 neighbours of the block (distance .5 cells) are blocked, 2 cells away is not.
+    const NavGrid r1 = g.inflated(1.0);
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) CHECK(r1.blocked(Cell{7 + dx, 7 + dy}));
+    }
+    CHECK(r1.free(Cell{9, 7}));
+    CHECK(r1.free(Cell{7, 5}));
+    CHECK(r1.free(Cell{0, 0}) == false);  // the border cell is within 1 of the outside
+    CHECK(r1.free(Cell{1, 1}));
+
+    // Radius 0.5 cell exactly touches: still free next to the block. Border cells too.
+    const NavGrid r05 = g.inflated(0.5);
+    CHECK(r05.free(Cell{8, 7}));
+    CHECK(r05.free(Cell{0, 0}));
+    // Slightly more than half a cell blocks the adjacent cells and the border ring.
+    const NavGrid r06 = g.inflated(0.6);
+    CHECK(r06.blocked(Cell{8, 7}));
+    CHECK(r06.blocked(Cell{0, 5}));
+    CHECK(r06.free(Cell{1, 5}));
+
+    // Free-space distance check against brute force (center to blocked square), several radii.
+    for (const double radius : {0.3, 0.7, 1.0, 1.6, 2.4}) {
+        const NavGrid inf = g.inflated(radius);
+        for (int y = 0; y < 15; ++y) {
+            for (int x = 0; x < 15; ++x) {
+                if (g.blocked(Cell{x, y})) continue;
+                bool want_blocked = false;
+                for (int by = -5; by <= 20 && !want_blocked; ++by) {
+                    for (int bx = -5; bx <= 20 && !want_blocked; ++bx) {
+                        if (!g.blocked(Cell{bx, by})) continue;
+                        const double ex = std::max(0.0, std::abs(bx - x) - 0.5);
+                        const double ey = std::max(0.0, std::abs(by - y) - 0.5);
+                        if (ex * ex + ey * ey < radius * radius) want_blocked = true;
+                    }
+                }
+                INFO("r " << radius << " cell " << x << "," << y);
+                CHECK(inf.blocked(Cell{x, y}) == want_blocked);
+            }
+        }
+    }
+}
+
+TEST_CASE("unit size: a gap one cell wide admits a thin unit but not a fat one", "[nav][inflate][smooth]") {
+    NavGrid g = open_grid(20, 12);
+    (void)g.block_rect(10.0, 0.0, 11.0, 12.0);  // wall at column 10
+    g.set_blocked(Cell{10, 6}, false);           // one-cell gap (1 m wide)
+
+    const NavGrid thin = g.inflated(0.4);   // diameter 0.8 m < 1 m gap
+    const NavGrid fat = g.inflated(0.7);    // diameter 1.4 m > 1 m gap
+    Pathfinder fthin(thin), ffat(fat);
+
+    const PathResult a = fthin.find_path(at(2.5, 6.5), at(17.5, 6.5));
+    CHECK(a.status == PathStatus::Found);
+    const PathResult b = ffat.find_path(at(2.5, 6.5), at(17.5, 6.5));
+    CHECK(b.status == PathStatus::Partial);  // can only get as close as the wall allows
+    CHECK(b.waypoints.back().x < 10.0);
+
+    // A fat unit given a 3-cell gap does get through.
+    g.set_blocked(Cell{10, 5}, false);
+    g.set_blocked(Cell{10, 7}, false);
+    const NavGrid fat2 = g.inflated(0.7);
+    Pathfinder ffat2(fat2);
+    const PathResult c = ffat2.find_path(at(2.5, 6.5), at(17.5, 6.5));
+    CHECK(c.status == PathStatus::Found);
+}
+
+TEST_CASE("unit size: smoothed paths keep their distance from walls", "[nav][inflate][smooth]") {
+    NavGrid g = open_grid(40, 40);
+    (void)g.block_rect(18.0, 0.0, 20.0, 30.0);  // wall, open above y = 30
+    const double radius = 0.9;
+    const NavGrid inf = g.inflated(radius);
+    Pathfinder f(inf);
+    const Vec3 start = at(5.5, 5.5);
+    const PathResult r = f.find_path(start, at(33.5, 5.5));
+    REQUIRE(r.status == PathStatus::Found);
+
+    // Sample the whole walk: distance to every blocked square of the REAL map must stay near
+    // the radius (center-based freedom allows up to 0.71 x cell of slack, see inflated()).
+    Vec3 prev = start;
+    for (const Vec3& wp : r.waypoints) {
+        for (int i = 0; i <= 200; ++i) {
+            const double t = i / 200.0;
+            const Vec3 p{prev.x + (wp.x - prev.x) * t, prev.y + (wp.y - prev.y) * t, 0.0};
+            for (int y = 0; y < 40; ++y) {
+                for (int x = 0; x < 40; ++x) {
+                    if (g.free(Cell{x, y})) continue;
+                    const double ex = std::max({0.0, x - p.x, p.x - (x + 1.0)});
+                    const double ey = std::max({0.0, y - p.y, p.y - (y + 1.0)});
+                    REQUIRE(std::sqrt(ex * ex + ey * ey) >= radius - 0.71 - 1e-9);
+                }
+            }
+        }
+        prev = wp;
+    }
+}
+
+TEST_CASE("smoothed pathfinding is deterministic", "[nav][smooth]") {
+    const NavGrid g = random_grid(5, 50, 50, 25);
+    Pathfinder reused(g);
+    core::Rng rng(11);
+    for (int i = 0; i < 200; ++i) {
+        const Vec3 a = at(rng.next_u32() % 5000 / 100.0, rng.next_u32() % 5000 / 100.0);
+        const Vec3 b = at(rng.next_u32() % 5000 / 100.0, rng.next_u32() % 5000 / 100.0);
+        Pathfinder fresh(g);
+        const PathResult x = reused.find_path(a, b);
+        const PathResult y = fresh.find_path(a, b);
+        REQUIRE(x.status == y.status);
+        REQUIRE(x.waypoints == y.waypoints);
+    }
 }

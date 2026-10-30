@@ -85,6 +85,23 @@ public:
     // at most `max_radius_cells` away. nullopt if none.
     [[nodiscard]] std::optional<Cell> nearest_free_cell(Cell from, std::int32_t max_radius_cells) const noexcept;
 
+    // True iff the straight segment a -> b stays on free cells: every cell the segment touches
+    // must be free, including cells it only clips at a corner (a segment through an exact
+    // grid corner needs both side cells and the diagonal cell free). Conservative on purpose:
+    // a point agent walking it can never touch a blocked cell. Symmetric: clear(a,b) == clear(b,a).
+    // Z is ignored. A start or end outside the map or on a blocked cell is not clear.
+    [[nodiscard]] bool segment_clear(const core::math::Vec3& a, const core::math::Vec3& b) const noexcept;
+
+    // A copy where obstacles (and the map border) are grown by `radius` meters, so a POINT
+    // moving on the copy models a CIRCLE of that radius moving on this grid. A cell becomes
+    // blocked when its center is closer than `radius` to a blocked cell's square or to the
+    // outside of the map. radius <= 0 returns an unchanged copy. Build once per unit size and
+    // keep it (cost is O(cells x (radius/cell_size)^2)); rebuild when this grid changes.
+    // Accuracy: because freedom is decided at cell centers, clearance inside a free cell can be
+    // up to half a cell diagonal (0.71 x cell_size) less than `radius`; use cell_size well below
+    // your smallest unit radius if that matters.
+    [[nodiscard]] NavGrid inflated(core::Scalar radius) const;
+
     // FNV-1a over geometry and cells: equal maps hash equal.
     [[nodiscard]] std::uint64_t hash() const noexcept;
 
