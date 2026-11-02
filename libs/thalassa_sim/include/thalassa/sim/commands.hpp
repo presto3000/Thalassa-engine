@@ -83,6 +83,16 @@ struct Command {
     // request (server-issued spawns carry their stats directly).
     std::uint32_t unit_type = 0;
 
+    // SpawnUnit only: the unit's ground radius in meters (0 = a point). Decides which
+    // inflated nav map copy it is routed on; see components::Radius.
+    core::Scalar radius = 0.0;
+
+    [[nodiscard]] Command with_radius(core::Scalar meters) const {
+        Command c = *this;
+        c.radius = meters;
+        return c;
+    }
+
     // A client's spawn REQUEST: only unit type and position matter; the server
     // fills in owner, team and all stats.
     [[nodiscard]] static Command request_spawn(std::uint32_t requested_unit_type, core::math::Vec3 spawn_position) {

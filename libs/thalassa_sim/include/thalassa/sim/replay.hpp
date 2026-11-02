@@ -4,8 +4,8 @@
 #include "thalassa/sim/sim_world.hpp"
 
 // World-state snapshotting for SimWorld, built on thalassa_core's
-// ByteWriter/ByteReader and ComponentPool<T>::serialize/deserialize. 
-// "serialization of world state (for save/replay
+// ByteWriter/ByteReader and ComponentPool<T>::serialize/deserialize. This
+// is the Milestone 1 "serialization of world state (for save/replay
 // later)" deliverable: a snapshot captures everything needed to resume an
 // identical simulation (entity allocator state, RNG state, tick counter,
 // and every registered component pool), and reloading one and continuing
@@ -13,7 +13,7 @@
 // tests/thalassa_sim/replay_tests.cpp for that proof.
 //
 // This is deliberately NOT a full replay system yet (that needs the
-// command-buffer pattern: record *inputs*, not just
+// command-buffer pattern from Milestone 2: record *inputs*, not just
 // periodic full-state snapshots, so a replay is "resimulate from initial
 // state + recorded commands" rather than "store every tick's full
 // state"). What's here is the save/load primitive that milestone will
@@ -33,7 +33,7 @@
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kSnapshotMagic = 0x54484C41;  // "THLA" (Thalassa)
-inline constexpr std::uint32_t kSnapshotVersion = 3;  // v2: Team/Owner/Health/CombatStats/Projectile; v3: AttackProfile/AttackState
+inline constexpr std::uint32_t kSnapshotVersion = 4;  // v2: Team/Owner/Health/CombatStats/Projectile; v3: AttackProfile/AttackState; v4: nav hash, Radius/Path
 
 // Serializes `world` into `writer`. See the file-level comment for scope.
 void save_world(const SimWorld& world, core::serialization::ByteWriter& writer);

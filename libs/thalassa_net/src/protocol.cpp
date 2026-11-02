@@ -51,6 +51,7 @@ void write_command(WireWriter& w, const sim::Command& c) {
     w.f64(c.attack_windup_seconds);
     w.f64(c.projectile_speed);
     w.u32(c.unit_type);
+    w.f64(c.radius);
 }
 
 bool read_command(WireReader& r, sim::Command& out) {
@@ -73,12 +74,13 @@ bool read_command(WireReader& r, sim::Command& out) {
     c.attack_windup_seconds = r.f64();
     c.projectile_speed = r.f64();
     c.unit_type = r.u32();
+    c.radius = r.f64();
     if (!r.ok()) return false;
 
     // Untrusted numbers: NaN/inf would poison the deterministic simulation.
     if (!finite(c.position) || !finite(c.speed) || !finite(c.max_health) || !finite(c.attack_damage) ||
         !finite(c.attack_range) || !finite(c.attack_cooldown_seconds) || !finite(c.attack_windup_seconds) ||
-        !finite(c.projectile_speed)) {
+        !finite(c.projectile_speed) || !finite(c.radius) || c.radius < 0.0 || c.radius > 1.0e3) {
         return false;
     }
     if (c.attack_kind != sim::Command::kNoProfile && c.attack_kind != 0 && c.attack_kind != 1) return false;

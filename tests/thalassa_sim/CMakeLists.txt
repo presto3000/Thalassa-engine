@@ -7,6 +7,7 @@ add_executable(thalassa_sim_tests
     replay_recording_tests.cpp
     attack_profile_tests.cpp
     nav_tests.cpp
+    nav_movement_tests.cpp
 )
 
 target_link_libraries(thalassa_sim_tests

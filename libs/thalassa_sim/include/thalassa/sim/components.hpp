@@ -153,5 +153,31 @@ struct AttackState {
 };
 static_assert(sizeof(AttackState) == 24, "AttackState must have no implicit padding");
 
+// --- Navigation components (pathfinding step 3) -----------------------------
+
+// How big an entity is on the ground, in meters (a circle). Used to pick which inflated
+// copy of the nav map the entity is routed on, so wide units do not plan through gaps they
+// cannot fit. Absent = a point (radius 0). Later also used for unit-vs-unit avoidance.
+struct Radius {
+    core::Scalar value = 0.0;
+};
+static_assert(sizeof(Radius) == 8, "Radius must have no implicit padding");
+
+// The route an entity is following: waypoints from the nav planner (smoothed, in order).
+// Exists only while the entity has a Destination and a nav map is set; steering_system
+// consumes it. Fixed capacity so it stays a plain, snapshot-friendly struct; when a route
+// is longer than kMaxWaypoints the stored part is followed first and the planner is asked
+// again from where the unit stands (flag kTruncated).
+struct Path {
+    static constexpr std::uint16_t kMaxWaypoints = 16;
+    static constexpr std::uint32_t kPartial = 1;    // goal unreachable: the route ends at the closest reachable point
+    static constexpr std::uint32_t kTruncated = 2;  // more waypoints existed than fit: replan when these run out
+
+    std::uint16_t count = 0;  // valid entries in points
+    std::uint16_t next = 0;   // index of the waypoint being walked toward
+    std::uint32_t flags = 0;
+    core::math::Vec3 points[kMaxWaypoints];
+};
+static_assert(sizeof(Path) == 8 + 24 * Path::kMaxWaypoints, "Path must have no implicit padding");
 
 }  // namespace thalassa::sim::components

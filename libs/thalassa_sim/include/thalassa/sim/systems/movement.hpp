@@ -3,9 +3,13 @@
 #include "thalassa/core/ecs/world.hpp"
 #include "thalassa/core/types.hpp"
 
-// Movement systems: straight-line "deterministic path
-// following" (no obstacle avoidance or full
-// pathfinding yet, that's later). Two systems, run in this
+namespace thalassa::sim::nav {
+class PathPlanner;
+}
+
+// Movement systems for Milestone 1: straight-line "deterministic path
+// following" (per the milestone spec — no obstacle avoidance or full
+// pathfinding yet, that's a later milestone). Two systems, run in this
 // fixed order every tick (see thalassa::sim::SimWorld::tick):
 //
 //   1. steering_system: for every entity with (Position, Destination),
@@ -35,6 +39,15 @@
 namespace thalassa::sim::systems {
 
 void steering_system(core::ecs::World& world, core::Scalar dt_seconds);
+
+// Same, but entities carrying a components::Path follow its waypoints instead of heading
+// straight for the destination: each tick the unit spends its movement budget (speed * dt)
+// along the polyline, snapping onto each waypoint it reaches and carrying the leftover
+// distance into the next leg, so speed stays constant around corners. A route that ends
+// (all waypoints consumed) is an arrival, even for a partial route that stops short of the
+// destination, EXCEPT a truncated route, which asks `planner` for the next stretch.
+// `planner` may be null (then truncated routes simply end).
+void steering_system(core::ecs::World& world, core::Scalar dt_seconds, nav::PathPlanner* planner);
 void integration_system(core::ecs::World& world, core::Scalar dt_seconds);
 
 }  // namespace thalassa::sim::systems

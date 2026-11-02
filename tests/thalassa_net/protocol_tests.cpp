@@ -12,8 +12,11 @@ using thalassa::sim::Command;
 namespace {
 
 Command sample_command() {
-    return Command::spawn_unit({1.5, -2.5, 3.0}, thalassa::core::PlayerId{7}, 1, 123.0, 14.0, 12.5, 0.75)
-        .as_ranged(0.3, 22.0);
+    Command c = Command::spawn_unit({1.5, -2.5, 3.0}, thalassa::core::PlayerId{7}, 1, 123.0, 14.0, 12.5, 0.75)
+                    .as_ranged(0.3, 22.0)
+                    .with_radius(0.6);
+    c.unit_type = 9;
+    return c;
 }
 
 bool same(const Command& a, const Command& b) {
@@ -21,7 +24,8 @@ bool same(const Command& a, const Command& b) {
            a.owner == b.owner && a.team == b.team && a.max_health == b.max_health &&
            a.attack_damage == b.attack_damage && a.attack_range == b.attack_range &&
            a.attack_cooldown_seconds == b.attack_cooldown_seconds && a.attack_kind == b.attack_kind &&
-           a.attack_windup_seconds == b.attack_windup_seconds && a.projectile_speed == b.projectile_speed;
+           a.attack_windup_seconds == b.attack_windup_seconds && a.projectile_speed == b.projectile_speed &&
+           a.unit_type == b.unit_type && a.radius == b.radius;
 }
 
 }  // namespace
@@ -143,4 +147,16 @@ TEST_CASE("protocol: NaN/inf numbers and bad enums are rejected", "[protocol]") 
 
     const std::vector<std::byte> bad_reject{std::byte{11}, std::byte{99}};
     REQUIRE_FALSE(decode_reject(bad_reject));
+}
+
+TEST_CASE("protocol: absurd or negative unit radius is rejected", "[protocol]") {
+    for (const double bad : {-1.0, 1.0e9, std::numeric_limits<double>::infinity(), std::nan("")}) {
+        Command c = sample_command();
+        c.radius = bad;
+        WireWriter w;
+        write_command(w, c);
+        WireReader r(w.bytes());
+        Command out;
+        CHECK_FALSE(read_command(r, out));
+    }
 }

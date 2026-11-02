@@ -15,7 +15,9 @@ using components::CombatStats;
 using components::Destination;
 using components::Health;
 using components::Owner;
+using components::Path;
 using components::Position;
+using components::Radius;
 using components::Projectile;
 using components::Team;
 using components::Velocity;
@@ -24,6 +26,9 @@ void save_world(const SimWorld& world, ByteWriter& writer) {
     writer.write_u32(kSnapshotMagic);
     writer.write_u32(kSnapshotVersion);
 
+    // Which nav map the world runs on (0 = none). The map itself is match configuration, not
+    // snapshot data; a snapshot only loads into a world that has the same one.
+    writer.write_u64(world.nav_hash());
     writer.write_u64(world.ticks_simulated());
     writer.write_u64(world.rng().state());
     writer.write_u64(world.rng().inc());
@@ -43,6 +48,7 @@ void save_world(const SimWorld& world, ByteWriter& writer) {
     save_component(world.world().find_pool<Position>());
     save_component(world.world().find_pool<Velocity>());
     save_component(world.world().find_pool<Destination>());
+    // Milestone 2 additions (bumped kSnapshotVersion to 2 — see replay.hpp):
     save_component(world.world().find_pool<Team>());
     save_component(world.world().find_pool<Owner>());
     save_component(world.world().find_pool<Health>());
@@ -51,6 +57,9 @@ void save_world(const SimWorld& world, ByteWriter& writer) {
     // Attack-profile slice (snapshot v3):
     save_component(world.world().find_pool<AttackProfile>());
     save_component(world.world().find_pool<AttackState>());
+    // Navigation slice (snapshot v4):
+    save_component(world.world().find_pool<Radius>());
+    save_component(world.world().find_pool<Path>());
 }
 
 void load_world(SimWorld& world, ByteReader& reader) {
@@ -59,6 +68,8 @@ void load_world(SimWorld& world, ByteReader& reader) {
     const auto version = reader.read_u32();
     THALASSA_ASSERT_MSG(version == kSnapshotVersion, "load_world: unsupported snapshot version");
 
+    const auto nav_hash = reader.read_u64();
+    THALASSA_ASSERT_MSG(nav_hash == world.nav_hash(), "load_world: snapshot was taken on a different nav map");
     const auto ticks = reader.read_u64();
     const auto rng_state = reader.read_u64();
     const auto rng_inc = reader.read_u64();
@@ -75,6 +86,8 @@ void load_world(SimWorld& world, ByteReader& reader) {
     world.world().ensure_pool<Projectile>().deserialize(reader);
     world.world().ensure_pool<AttackProfile>().deserialize(reader);
     world.world().ensure_pool<AttackState>().deserialize(reader);
+    world.world().ensure_pool<Radius>().deserialize(reader);
+    world.world().ensure_pool<Path>().deserialize(reader);
 
     world.rng().restore(rng_state, rng_inc);
     world.set_ticks_simulated(ticks);

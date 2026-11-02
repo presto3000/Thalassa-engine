@@ -1,12 +1,17 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
+#include "thalassa/core/assert.hpp"
 #include "thalassa/core/ecs/world.hpp"
 #include "thalassa/core/random.hpp"
 #include "thalassa/core/types.hpp"
 #include "thalassa/sim/commands.hpp"
+#include "thalassa/sim/components.hpp"
 #include "thalassa/sim/events.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
+#include "thalassa/sim/nav/path_planner.hpp"
 #include "thalassa/sim/spatial_index.hpp"
 #include "thalassa/sim/systems/combat.hpp"
 #include "thalassa/sim/systems/movement.hpp"
@@ -20,7 +25,8 @@
 //
 // tick() runs, in this fixed order every tick:
 //   1. apply_commands   — Command buffer -> World mutations (spawns, move orders)
-//   2. steering_system   — Destination -> desired Velocity
+//      (with a nav map: each MoveTo is routed here, see set_nav_map)
+//   2. steering_system   — Destination (+ Path) -> desired Velocity
 //   3. integration_system — Velocity -> Position (moves units AND projectiles)
 //   4. spatial index rebuild — so the rest of this tick's queries see
 //      this tick's post-movement positions
@@ -37,7 +43,22 @@ class SimWorld {
 public:
     explicit SimWorld(std::uint64_t rng_seed) : rng_(rng_seed) {}
 
-    // Convenience overload for callers with no commands this tick — equivalent to
+    // --- Navigation ----------------------------------------------------------
+    // Gives the world a nav map: from then on every MoveTo is routed around obstacles
+    // (components::Path) instead of walking in a straight line. The map is match
+    // configuration like the seed: set it before the first tick, identical on every
+    // participant (compare nav_hash()). Without a map the world behaves exactly as before.
+    void set_nav_map(std::shared_ptr<const nav::NavMap> map) {
+        THALASSA_ASSERT_MSG(ticks_simulated_ == 0, "SimWorld::set_nav_map: set the nav map before the first tick");
+        nav_map_ = std::move(map);
+        planner_ = nav_map_ ? std::make_unique<nav::PathPlanner>(nav_map_) : nullptr;
+    }
+    [[nodiscard]] const std::shared_ptr<const nav::NavMap>& nav_map() const noexcept { return nav_map_; }
+    [[nodiscard]] std::uint64_t nav_hash() const noexcept { return nav_map_ ? nav_map_->hash() : 0; }
+    [[nodiscard]] const nav::PathPlanner* path_planner() const noexcept { return planner_.get(); }
+
+    // Convenience overload for callers with no commands this tick (e.g.
+    // Milestone 1's movement-only tests/sandbox) — equivalent to
     // tick(current_tick, {}).
     void tick(core::SimTick current_tick) { tick(current_tick, {}); }
 
@@ -53,7 +74,18 @@ public:
 
         (void)apply_commands(ecs_world_, commands);
 
-        systems::steering_system(ecs_world_, dt);
+        // Route every move order issued this tick (in command order: deterministic).
+        if (planner_) {
+            for (const Command& command : commands) {
+                if (command.type != Command::Type::MoveTo) continue;
+                if (ecs_world_.is_alive(command.entity) && ecs_world_.has<components::Destination>(command.entity)) {
+                    if (ecs_world_.has<components::Path>(command.entity)) ecs_world_.remove<components::Path>(command.entity);
+                    planner_->plan(ecs_world_, command.entity);
+                }
+            }
+        }
+
+        systems::steering_system(ecs_world_, dt, planner_.get());
         systems::integration_system(ecs_world_, dt);
         spatial_index_.rebuild(ecs_world_);
 
@@ -98,6 +130,8 @@ public:
 
 private:
     core::ecs::World ecs_world_;
+    std::shared_ptr<const nav::NavMap> nav_map_;
+    std::unique_ptr<nav::PathPlanner> planner_;
     core::Rng rng_;
     SpatialIndex spatial_index_;
     EventBuffer events_;
