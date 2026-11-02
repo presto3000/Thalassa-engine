@@ -49,7 +49,8 @@ TEST_CASE("protocol: a Command is exactly kCommandWireBytes on the wire and roun
 }
 
 TEST_CASE("protocol: every message type round-trips", "[protocol]") {
-    REQUIRE(decode_hello(encode(HelloMsg{1, 42}))->match_id == 42);
+    REQUIRE(decode_hello(encode(HelloMsg{1, 42, 0xABCDEF0123ull}))->match_id == 42);
+    REQUIRE(decode_hello(encode(HelloMsg{1, 42, 0xABCDEF0123ull}))->nav_hash == 0xABCDEF0123ull);
 
     const auto cc = decode_client_command(encode(ClientCommandMsg{777, sample_command()}));
     REQUIRE(cc);
@@ -62,14 +63,17 @@ TEST_CASE("protocol: every message type round-trips", "[protocol]") {
     wm.match_id = 9;
     wm.rng_seed = 0xDEADBEEFCAFEull;
     wm.server_tick = 1234;
+    wm.nav_hash = 0x1122334455667788ull;
     const auto w = decode_welcome(encode(wm));
     REQUIRE(w);
     REQUIRE(w->player_id == 3);
     REQUIRE(w->team == 1);
     REQUIRE(w->rng_seed == 0xDEADBEEFCAFEull);
     REQUIRE(w->server_tick == 1234);
+    REQUIRE(w->nav_hash == 0x1122334455667788ull);
 
     REQUIRE(decode_reject(encode(RejectMsg{RejectReason::UnknownMatch}))->reason == RejectReason::UnknownMatch);
+    REQUIRE(decode_reject(encode(RejectMsg{RejectReason::NavMismatch}))->reason == RejectReason::NavMismatch);
 
     BatchMsg b;
     b.up_to_tick = 99;

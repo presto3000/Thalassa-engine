@@ -1,21 +1,25 @@
 #pragma once
 
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
 #include "thalassa/core/assert.hpp"
 #include "thalassa/core/types.hpp"
 #include "thalassa/sim/commands.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/sim_world.hpp"
 
-// MatchHost: "support for multiple concurrent game
+// MatchHost: the Milestone 3 "support for multiple concurrent game
 // instances on one server process" deliverable. Owns a set of independent
 // matches — each its own SimWorld, CommandLog, and tick counter, sharing
-// no mutable state with any other match and advances all of them together
-// once per server loop iteration.
+// no mutable state with any other match (see
+// docs/milestone3_networking_design.md's "Multi-match hosting" section) —
+// and advances all of them together once per server loop iteration.
+//
 // This sits above SimWorld/HeadlessApp, not in place of them: HeadlessApp
 // (thalassa/server/headless_app.hpp) remains the right tool for a single
-// always-on world driven by wall-clock time.
+// always-on world driven by wall-clock time (Milestone 0/1/2's use case).
 // MatchHost is for a server process hosting several independent matches at
 // once, each advanced by an explicit tick_all() call — pairing MatchHost
 // with a FixedTimestep-driven loop (see HeadlessApp for the pattern) is
@@ -31,9 +35,12 @@ public:
     // MatchId from a destroyed match is detectably invalid (has_match()
     // returns false) rather than silently aliasing a later match, the
     // same generation-safety idea as core::ecs::Entity.
-    [[nodiscard]] core::MatchId create_match(std::uint64_t rng_seed) {
+    // `nav_map` (optional) is the match's shared, read-only navigation map.
+    [[nodiscard]] core::MatchId create_match(std::uint64_t rng_seed,
+                                             std::shared_ptr<const sim::nav::NavMap> nav_map = nullptr) {
         const core::MatchId id{next_id_++};
-        matches_.emplace(id.value(), Match{sim::SimWorld(rng_seed), sim::CommandLog{}, core::SimTick{0}});
+        const auto it = matches_.emplace(id.value(), Match{sim::SimWorld(rng_seed), sim::CommandLog{}, core::SimTick{0}}).first;
+        if (nav_map != nullptr) it->second.world.set_nav_map(std::move(nav_map));
         return id;
     }
 
@@ -45,7 +52,9 @@ public:
     // match. If `target_tick` has already been simulated (i.e. it's not
     // strictly in the future relative to the match's current tick), it's
     // clamped to the next tick that hasn't run yet and the command is
-    // still applied there
+    // still applied there — see "Late/local commands..." in
+    // docs/milestone3_networking_design.md for why reschedule-rather-than-
+    // drop is this milestone's simple policy.
     void submit_command(core::MatchId id, core::SimTick target_tick, sim::Command command) {
         Match& match = match_at(id);
         const std::uint64_t requested = core::to_u64(target_tick);

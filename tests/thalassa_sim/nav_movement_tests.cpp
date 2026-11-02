@@ -305,3 +305,59 @@ TEST_CASE("replay file: unit type and radius survive recording, saving and playb
     player.sim().world().each<Radius>([&](Entity, const Radius& rad) { found = rad.value == 0.75; });
     CHECK(found);
 }
+
+TEST_CASE("replay: the nav map is embedded in the recording and playback walks the same routes", "[nav][replay]") {
+    const auto map = NavMap::create(walled_grid(), {0.4});
+    sim::ReplayRecorder rec(5, kDt, 30);
+    rec.set_nav_map(map);
+    const Entity unit = rec.submit(Command::spawn_unit(at(10.0, 10.0), core::PlayerId{1}, 0, 100.0, 0.0, 0.0, 1.0)).front();
+    rec.step({Command::move_to(unit, at(30.0, 10.0), 6.0)});
+    for (int i = 0; i < 60 * 12; ++i) rec.step();
+    const sim::ReplayRecording recording = rec.finish();
+    REQUIRE(recording.nav_map != nullptr);
+
+    core::serialization::ByteWriter w;
+    recording.serialize(w);
+    sim::ReplayRecording loaded;
+    core::serialization::ByteReader r(w.bytes());
+    REQUIRE(loaded.deserialize(r));
+    REQUIRE(loaded.nav_map != nullptr);
+    CHECK(loaded.nav_map->hash() == map->hash());
+
+    sim::ReplayPlayer player(loaded);
+    double highest_y = 0.0;
+    while (player.step_tick()) {
+        highest_y = std::max(highest_y, player.sim().world().get<Position>(unit).value.y);
+    }
+    CHECK_FALSE(player.desynced());
+    CHECK(player.final_checksum_matches());
+    CHECK(player.sim().nav_hash() == map->hash());
+    CHECK(highest_y > 29.0);  // it really went around the wall, not through it
+    CHECK(player.sim().world().get<Position>(unit).value.x == 30.0);
+
+    // Seeking backwards re-simulates on the embedded map and lands on the same state.
+    player.seek(100);
+    player.seek(player.total_ticks());
+    CHECK(player.final_checksum_matches());
+}
+
+TEST_CASE("replay without a nav map stays map-less, and a corrupt map flag is rejected", "[nav][replay]") {
+    sim::ReplayRecorder rec(3, kDt, 30);
+    for (int i = 0; i < 5; ++i) rec.step();
+    const sim::ReplayRecording recording = rec.finish();
+    CHECK(recording.nav_map == nullptr);
+
+    core::serialization::ByteWriter w;
+    recording.serialize(w);
+    sim::ReplayRecording loaded;
+    core::serialization::ByteReader r(w.bytes());
+    REQUIRE(loaded.deserialize(r));
+    CHECK(loaded.nav_map == nullptr);
+
+    std::vector<std::byte> bytes = w.bytes();
+    constexpr std::size_t kHasMapOffset = 44;  // magic, version, seed, dt, ticks, checksum, interval
+    bytes[kHasMapOffset] = std::byte{5};
+    core::serialization::ByteReader bad(bytes);
+    sim::ReplayRecording rejected;
+    CHECK_FALSE(rejected.deserialize(bad));
+}

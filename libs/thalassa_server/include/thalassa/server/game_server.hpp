@@ -9,6 +9,7 @@
 #include "thalassa/net/reliable_channel.hpp"
 #include "thalassa/net/transport.hpp"
 #include "thalassa/server/match_host.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/commands.hpp"
 #include "thalassa/sim/replay_recording.hpp"
 
@@ -93,7 +94,10 @@ public:
     GameServer(net::ITransport& transport, ServerConfig config, double now);
 
     // Creates a match. Players join it by id.
-    [[nodiscard]] core::MatchId create_match(std::uint64_t rng_seed);
+    // `nav_map` (optional): clients must present the same map hash to join, and
+    // exported replays embed it.
+    [[nodiscard]] core::MatchId create_match(std::uint64_t rng_seed,
+                                             std::shared_ptr<const sim::nav::NavMap> nav_map = nullptr);
 
     // Server-authoritative command (e.g. initial spawns), scheduled for
     // `target_tick` (clamped up to the match's next tick if already past).
@@ -119,6 +123,7 @@ private:
     };
     struct MatchState {
         std::uint64_t seed = 0;
+        std::shared_ptr<const sim::nav::NavMap> nav_map;
         std::vector<LoggedCommand> history;                 // executed commands, ascending tick, execution order
         std::multimap<std::uint64_t, sim::Command> scheduled;  // future commands (insertion order kept per tick)
         std::uint32_t players_joined = 0;

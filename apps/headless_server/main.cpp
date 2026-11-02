@@ -1,7 +1,10 @@
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 #include "thalassa/core/log.hpp"
 #include "thalassa/server/dedicated_server.hpp"
@@ -10,6 +13,9 @@
 //
 //   thalassa_headless_server [--port N] [--bind ADDR] [--seed N] [--players N]
 //                            [--replay FILE] [--max-clients N] [--client-spawns]
+//                            [--nav-file FILE]
+//
+// --nav-file loads a serialized NavMap (NavMap::serialize bytes); clients must hold the same map.
 //
 // --client-spawns lets players spawn footmen/archers/scouts on their side of the arena.
 //
@@ -24,7 +30,7 @@ void handle_signal(int) {
 void usage() {
     THALASSA_LOG_INFO(
         "usage: thalassa_headless_server [--port N] [--bind ADDR] [--seed N] [--players N] "
-        "[--replay FILE] [--max-clients N] [--client-spawns]");
+        "[--replay FILE] [--max-clients N] [--client-spawns] [--nav-file FILE]");
 }
 }  // namespace
 
@@ -41,6 +47,17 @@ int main(int argc, char** argv) {
             else if (arg == "--seed" && has_value) config.seed = std::stoull(argv[++i]);
             else if (arg == "--players" && has_value) config.players = static_cast<std::uint32_t>(std::stoul(argv[++i]));
             else if (arg == "--replay" && has_value) config.replay_path = argv[++i];
+            else if (arg == "--nav-file" && has_value) {
+                std::ifstream in(argv[++i], std::ios::binary);
+                const std::vector<char> raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+                std::vector<std::byte> bytes(raw.size());
+                for (std::size_t k = 0; k < raw.size(); ++k) bytes[k] = static_cast<std::byte>(raw[k]);
+                config.nav_map = thalassa::sim::nav::NavMap::deserialize(bytes);
+                if (config.nav_map == nullptr) {
+                    THALASSA_LOG_ERROR("cannot load nav map from {}", argv[i]);
+                    return EXIT_FAILURE;
+                }
+            }
             else if (arg == "--client-spawns") config.client_spawns = true;
             else if (arg == "--max-clients" && has_value) config.server.max_clients = std::stoul(argv[++i]);
             else { usage(); return arg == "--help" ? EXIT_SUCCESS : EXIT_FAILURE; }

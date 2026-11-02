@@ -62,7 +62,7 @@ std::unique_ptr<DedicatedServer> DedicatedServer::create(const DedicatedServerCo
     ServerConfig server_config = config.server;
     if (config.client_spawns) configure_client_spawns(server_config, config.players);
     s->game_ = std::make_unique<GameServer>(*s->transport_, server_config, 0.0);
-    s->match_ = s->game_->create_match(config.seed);
+    s->match_ = s->game_->create_match(config.seed, config.nav_map);
     spawn_arena(*s->game_, s->match_, config.players);
     return s;
 }

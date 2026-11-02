@@ -32,7 +32,7 @@
 
 namespace thalassa::net {
 
-inline constexpr std::uint32_t kProtocolVersion = 3;  // v2: Command carries unit_type (client spawn requests); v3: + radius
+inline constexpr std::uint32_t kProtocolVersion = 4;  // v2: Command carries unit_type (client spawn requests); v3: + radius; v4: nav map hash in Hello/Welcome
 
 enum class MessageType : std::uint8_t {
     Hello = 1,
@@ -47,11 +47,13 @@ enum class RejectReason : std::uint8_t {
     BadVersion = 1,
     UnknownMatch = 2,
     ServerFull = 3,
+    NavMismatch = 4,  // client and match use different navigation maps
 };
 
 struct HelloMsg {
     std::uint32_t version = kProtocolVersion;
     std::uint32_t match_id = 0;
+    std::uint64_t nav_hash = 0;  // hash of the client's nav map (0 = none); must equal the match's
 };
 struct ClientCommandMsg {
     std::uint64_t target_tick = 0;
@@ -64,6 +66,7 @@ struct WelcomeMsg {
     std::uint64_t rng_seed = 0;
     double tick_duration_seconds = 1.0 / 60.0;
     std::uint64_t server_tick = 0;  // the server's current tick when it sent this
+    std::uint64_t nav_hash = 0;     // the match's nav map hash (0 = none)
 };
 struct RejectMsg {
     RejectReason reason = RejectReason::BadVersion;

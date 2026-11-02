@@ -6,6 +6,7 @@
 
 #include "thalassa/core/serialization/byte_stream.hpp"
 #include "thalassa/sim/commands.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/sim_world.hpp"
 
 // Basic replay system: record a WHOLE match from tick 0, play it back later.
@@ -30,7 +31,7 @@
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kReplayMagic = 0x50525448;  // "HTRP"
-inline constexpr std::uint32_t kReplayVersion = 4;  // v2: Command carries attack kind/windup/projectile speed; v3: + unit_type; v4: + radius
+inline constexpr std::uint32_t kReplayVersion = 5;  // v2: Command carries attack kind/windup/projectile speed; v3: + unit_type; v4: + radius; v5: + embedded NavMap
 
 // FNV-1a 64 over the complete serialized world state (save_world bytes).
 [[nodiscard]] std::uint64_t world_checksum(const SimWorld& world);
@@ -48,9 +49,13 @@ struct ReplayRecording {
     std::uint32_t checkpoint_interval = 0;  // 0 = no checkpoints
     std::vector<ReplayCheckpoint> checkpoints;
     CommandLog commands;
+    // Navigation map the match ran on (null = no pathfinding). Embedded in the
+    // file so playback never depends on external map assets.
+    std::shared_ptr<const nav::NavMap> nav_map;
 
     void serialize(core::serialization::ByteWriter& writer) const;
-    // Returns false on bad magic/version (corrupt reads still assert, per ByteReader policy).
+    // Returns false on bad magic/version or an unreadable embedded nav map
+    // (other corrupt reads still assert, per ByteReader policy).
     [[nodiscard]] bool deserialize(core::serialization::ByteReader& reader);
 };
 
@@ -63,6 +68,10 @@ public:
 
     // Logs `commands` against the current tick and advances one tick.
     void step(const std::vector<Command>& commands = {});
+
+    // Installs the match's navigation map and stores it in the recording.
+    // Must be called before the first tick (see SimWorld::set_nav_map).
+    void set_nav_map(std::shared_ptr<const nav::NavMap> map);
 
     // Applies `command` to the world IMMEDIATELY (so the caller gets the
     // spawned Entity handle back right away, which an engine integration

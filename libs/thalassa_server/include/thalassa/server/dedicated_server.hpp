@@ -36,6 +36,7 @@ struct DedicatedServerConfig {
     // 3 = scout (legacy instant attack); each team may spawn on its own side of the arena
     // (x in [-20,-8] for even teams, [8,20] for odd), up to 12 units per player.
     bool client_spawns = false;
+    std::shared_ptr<const sim::nav::NavMap> nav_map;  // optional; joiners must hold the same map
     ServerConfig server;
 };
 

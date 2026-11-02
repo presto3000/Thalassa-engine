@@ -9,6 +9,7 @@
 #include "thalassa/net/protocol.hpp"
 #include "thalassa/net/reliable_channel.hpp"
 #include "thalassa/net/transport.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/commands.hpp"
 
 // GameClient: the client end of a networked match. Joins a GameServer over
@@ -43,6 +44,9 @@ struct ClientConfig {
     std::uint32_t max_prediction_ticks = 90;  // 1.5 s at 60 Hz
     double safety_margin_seconds = 0.03;      // jitter allowance added to the prediction horizon
     double connect_timeout_seconds = 5.0;
+    // The match's navigation map (null = none). Its hash goes in Hello; the server
+    // rejects the join with NavMismatch if it differs from the match's.
+    std::shared_ptr<const sim::nav::NavMap> nav_map;
 };
 
 enum class ClientState : std::uint8_t {

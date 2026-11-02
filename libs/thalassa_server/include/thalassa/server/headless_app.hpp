@@ -5,12 +5,13 @@
 #include <cstdint>
 
 #include "thalassa/core/time/fixed_timestep.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/sim_world.hpp"
 
-// HeadlessApp: "Headless application that runs
+// HeadlessApp: Milestone 0's deliverable — "Headless application that runs
 // a fixed timestep loop with an empty ECS world." Runs entirely without
 // rendering or windowing, suitable both as the eventual dedicated server
-// entry point (later adds networking on top of this) and as a
+// entry point (Milestone 3 adds networking on top of this) and as a
 // starting point for automated determinism tests (run twice, compare
 // resulting world state).
 
@@ -19,6 +20,7 @@ namespace thalassa::server {
 struct HeadlessAppConfig {
     std::uint32_t ticks_per_second = 60;
     std::uint64_t rng_seed = 1;
+    std::shared_ptr<const sim::nav::NavMap> nav_map;  // optional navigation map
 
     // 0 = run until stop() is called (real dedicated server behavior).
     // Non-zero = run exactly this many sim ticks then return (used by
@@ -37,7 +39,9 @@ public:
     explicit HeadlessApp(HeadlessAppConfig config)
         : config_(config),
           timestep_(config.ticks_per_second),
-          sim_world_(config.rng_seed) {}
+          sim_world_(config.rng_seed) {
+        if (config.nav_map != nullptr) sim_world_.set_nav_map(config.nav_map);
+    }
 
     // Runs the fixed-timestep loop until stop() is called from another
     // thread/signal handler, or until config_.max_ticks is reached (if
