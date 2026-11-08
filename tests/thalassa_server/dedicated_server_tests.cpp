@@ -11,6 +11,7 @@
 #include "thalassa/net/udp_transport.hpp"
 #include "thalassa/server/dedicated_server.hpp"
 #include "thalassa/sim/components.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/replay_file.hpp"
 #include "thalassa/sim/replay_recording.hpp"
 
@@ -287,4 +288,69 @@ TEST_CASE("dedicated server: --client-spawns lets a player add units over real U
     (void)run_until(0.5, [] { return false; });
     CHECK(units_of(client.confirmed_world(), PlayerId{1}).size() == before + 1);
     CHECK(server->game().stats().commands_rejected == 1);
+}
+
+TEST_CASE("dedicated server: nav map is enforced and used over real UDP", "[server][udp][e2e][nav]") {
+    sim::nav::NavGrid grid(1.0, 0.0, 0.0, 40, 40);
+    (void)grid.block_rect(20.0, 0.0, 21.0, 30.0);
+    const auto map = sim::nav::NavMap::create(std::move(grid), {0.4});
+
+    DedicatedServerConfig cfg;
+    cfg.bind_address = "127.0.0.1";
+    cfg.port = 0;
+    cfg.nav_map = map;
+    std::string err;
+    auto server = DedicatedServer::create(cfg, &err);
+    INFO(err);
+    REQUIRE(server != nullptr);
+
+    net::UdpConfig u;
+    u.bind_address = "127.0.0.1";
+    auto sock_ok = net::UdpTransport::create(u);
+    auto sock_bad = net::UdpTransport::create(u);
+    REQUIRE(sock_ok != nullptr);
+    REQUIRE(sock_bad != nullptr);
+    const auto peer_ok = sock_ok->add_peer("127.0.0.1", server->port());
+    const auto peer_bad = sock_bad->add_peer("127.0.0.1", server->port());
+    const auto t0 = std::chrono::steady_clock::now();
+    auto now = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
+
+    net::ClientConfig with_map;
+    with_map.nav_map = map;
+    GameClient ok(*sock_ok, peer_ok, server->match_id().value(), now(), with_map);
+    GameClient bad(*sock_bad, peer_bad, server->match_id().value(), now());  // no map
+    auto run_until = [&](double seconds, auto&& done) {
+        const double end = now() + seconds;
+        while (now() < end) {
+            server->poll(now());
+            ok.update(now());
+            bad.update(now());
+            if (done()) return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return false;
+    };
+
+    REQUIRE(run_until(5.0, [&] { return ok.joined() && bad.state() == net::ClientState::Rejected; }));
+    CHECK(bad.reject_reason() == net::RejectReason::NavMismatch);
+    CHECK(ok.confirmed_world().nav_hash() == map->hash());
+
+    // Spawn a unit through the server and order it across the wall: it must take the long way round.
+    server->game().schedule_command(server->match_id(), core::SimTick{0},
+                                    Command::spawn_unit({10.0, 10.0, 0.0}, PlayerId{1}, 0, 100.0, 0.0, 0.0, 1.0));
+    Entity unit{};
+    REQUIRE(run_until(5.0, [&] {
+        bool found = false;
+        ok.confirmed_world().world().each<sim::components::Position>(
+            [&](Entity e, const sim::components::Position& p) { if (p.value.x == 10.0) { unit = e; found = true; } });
+        return found;
+    }));
+    REQUIRE(ok.issue_command(Command::move_to(unit, {30.0, 10.0, 0.0}, 25.0)));
+    double max_y = 0.0;
+    REQUIRE(run_until(15.0, [&] {
+        const auto& p = ok.confirmed_world().world().get<sim::components::Position>(unit).value;
+        max_y = std::max(max_y, p.y);
+        return p.x > 29.9;
+    }));
+    CHECK(max_y > 29.0);
 }

@@ -20,10 +20,11 @@ GameServer::GameServer(net::ITransport& transport, ServerConfig config, double n
                          "GameServer: tick duration must match SimWorld's (1/60 s)");
 }
 
-core::MatchId GameServer::create_match(std::uint64_t rng_seed) {
-    const core::MatchId id = host_.create_match(rng_seed);
+core::MatchId GameServer::create_match(std::uint64_t rng_seed, std::shared_ptr<const sim::nav::NavMap> nav_map) {
+    const core::MatchId id = host_.create_match(rng_seed, nav_map);
     MatchState state;
     state.seed = rng_seed;
+    state.nav_map = std::move(nav_map);
     matches_.emplace(id.value(), std::move(state));
     return id;
 }
@@ -130,6 +131,8 @@ void GameServer::handle_hello(PeerId peer, Client& client, const net::HelloMsg& 
     if (it == matches_.end() || !host_.has_match(match_id)) return reject(net::RejectReason::UnknownMatch);
 
     MatchState& match = it->second;
+    const std::uint64_t match_nav_hash = match.nav_map ? match.nav_map->hash() : 0;
+    if (hello.nav_hash != match_nav_hash) return reject(net::RejectReason::NavMismatch);
     client.phase = ClientPhase::Joined;
     client.match = match_id;
     client.player = core::PlayerId{next_player_id_++};
@@ -146,6 +149,7 @@ void GameServer::handle_hello(PeerId peer, Client& client, const net::HelloMsg& 
     welcome.rng_seed = match.seed;
     welcome.tick_duration_seconds = config_.tick_duration_seconds;
     welcome.server_tick = core::to_u64(host_.match_tick(match_id));
+    welcome.nav_hash = match_nav_hash;
     (void)client.channel.send_reliable(net::encode(welcome));
 }
 
@@ -313,6 +317,7 @@ sim::ReplayRecording GameServer::export_replay(core::MatchId match) const {
     rec.total_ticks = core::to_u64(host_.match_tick(match));
     rec.final_checksum = sim::world_checksum(host_.match_world(match));
     rec.checkpoint_interval = 0;
+    rec.nav_map = it->second.nav_map;
     for (const LoggedCommand& lc : it->second.history) rec.commands.add(lc.tick, lc.command);
     return rec;
 }

@@ -21,6 +21,7 @@ std::vector<Entity> apply_commands(World& world, const std::vector<Command>& com
                 world.emplace<components::Health>(e, components::Health{cmd.max_health, cmd.max_health});
                 world.emplace<components::CombatStats>(
                     e, components::CombatStats{cmd.attack_damage, cmd.attack_range, cmd.attack_cooldown_seconds, 0.0});
+                if (cmd.radius > 0.0) world.emplace<components::Radius>(e, components::Radius{cmd.radius});
                 if (cmd.attack_kind != Command::kNoProfile) {
                     components::AttackProfile profile;
                     profile.kind = cmd.attack_kind;

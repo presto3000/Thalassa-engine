@@ -1,6 +1,9 @@
 #pragma once
 
+#include <memory>
+
 #include "thalassa/core/types.hpp"
+#include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/commands.hpp"
 #include "thalassa/sim/sim_world.hpp"
 
@@ -23,7 +26,15 @@ public:
     // alongside the first snapshot) — see SimWorld's determinism
     // requirements; two SimWorlds only stay in sync if built from the
     // same seed and fed the same commands in the same tick order.
-    explicit PredictedClient(std::uint64_t rng_seed) : confirmed_world_(rng_seed), predicted_world_(rng_seed) {}
+    // `nav_map` (optional) must be the match's navigation map: both worlds are
+    // built on it, since a snapshot only loads into a world with the same map.
+    explicit PredictedClient(std::uint64_t rng_seed, std::shared_ptr<const sim::nav::NavMap> nav_map = nullptr)
+        : confirmed_world_(rng_seed), predicted_world_(rng_seed) {
+        if (nav_map != nullptr) {
+            confirmed_world_.set_nav_map(nav_map);
+            predicted_world_.set_nav_map(std::move(nav_map));
+        }
+    }
 
     // Records a command the local player issued, targeting `target_tick`
     // (computed by the caller as "current tick + input delay" — see

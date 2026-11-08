@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <span>
+#include <utility>
 
 #include "thalassa/sim/replay.hpp"
 
@@ -29,6 +31,7 @@ void write_command(ByteWriter& w, const Command& c) {
     w.write_pod(c.attack_windup_seconds);
     w.write_pod(c.projectile_speed);
     w.write_pod(c.unit_type);
+    w.write_pod(c.radius);
 }
 
 Command read_command(ByteReader& r) {
@@ -47,6 +50,7 @@ Command read_command(ByteReader& r) {
     c.attack_windup_seconds = r.read_pod<core::Scalar>();
     c.projectile_speed = r.read_pod<core::Scalar>();
     c.unit_type = r.read_pod<std::uint32_t>();
+    c.radius = r.read_pod<core::Scalar>();
     return c;
 }
 
@@ -71,6 +75,13 @@ void ReplayRecording::serialize(ByteWriter& w) const {
     w.write_u64(total_ticks);
     w.write_u64(final_checksum);
     w.write_u32(checkpoint_interval);
+    if (nav_map != nullptr) {
+        const std::vector<std::byte> blob = nav_map->serialize();
+        w.write_u32(1);
+        w.write_pod_array(std::span<const std::byte>(blob));
+    } else {
+        w.write_u32(0);
+    }
     w.write_u64(checkpoints.size());
     for (const auto& cp : checkpoints) {
         w.write_u64(cp.tick);
@@ -94,6 +105,18 @@ bool ReplayRecording::deserialize(ByteReader& r) {
     total_ticks = r.read_u64();
     final_checksum = r.read_u64();
     checkpoint_interval = r.read_u32();
+    nav_map.reset();
+    const std::uint32_t has_map = r.read_u32();
+    if (has_map > 1) return false;
+    if (has_map == 1) {
+        if (r.remaining() < sizeof(std::uint64_t)) return false;
+        const std::uint64_t len = r.read_u64();
+        if (len > r.remaining()) return false;
+        std::vector<std::byte> blob(static_cast<std::size_t>(len));
+        if (len != 0) r.read_bytes(blob.data(), blob.size());
+        nav_map = nav::NavMap::deserialize(blob);
+        if (nav_map == nullptr) return false;
+    }
     const std::uint64_t cp_count = r.read_u64();
     checkpoints.clear();
     checkpoints.reserve(cp_count);
@@ -129,6 +152,11 @@ void ReplayRecorder::step(const std::vector<Command>& commands) {
     if (rec_.checkpoint_interval != 0 && sim_.ticks_simulated() % rec_.checkpoint_interval == 0) {
         rec_.checkpoints.push_back({sim_.ticks_simulated(), world_checksum(sim_)});
     }
+}
+
+void ReplayRecorder::set_nav_map(std::shared_ptr<const nav::NavMap> map) {
+    sim_.set_nav_map(map);
+    rec_.nav_map = std::move(map);
 }
 
 std::vector<core::ecs::Entity> ReplayRecorder::submit(const Command& command) {
@@ -193,6 +221,7 @@ void ReplayPlayer::restart() {
     sim_ = std::make_unique<SimWorld>(rec_.seed);
     sim_->set_events_enabled(true);
     sim_->set_tick_duration_seconds(rec_.tick_duration_seconds);
+    if (rec_.nav_map != nullptr) sim_->set_nav_map(rec_.nav_map);
     tick_accumulator_ = 0.0;
     desynced_ = false;
 }

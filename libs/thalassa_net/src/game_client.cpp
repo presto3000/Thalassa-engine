@@ -13,7 +13,7 @@ GameClient::GameClient(ITransport& transport, PeerId server, std::uint32_t match
       config_(config),
       channel_(transport, server, now, config.channel),
       started_at_(now) {
-    (void)channel_.send_reliable(encode(HelloMsg{kProtocolVersion, match_id_}));
+    (void)channel_.send_reliable(encode(HelloMsg{kProtocolVersion, match_id_, config_.nav_map ? config_.nav_map->hash() : 0}));
 }
 
 void GameClient::update(double now) {
@@ -62,12 +62,18 @@ void GameClient::handle_message(const ChannelMessage& message, double now) {
                 state_ = ClientState::Disconnected;  // incompatible server
                 return;
             }
+            const std::uint64_t own_hash = config_.nav_map ? config_.nav_map->hash() : 0;
+            if (w->nav_hash != own_hash) {  // defensive: the server should already have rejected us
+                reject_reason_ = RejectReason::NavMismatch;
+                state_ = ClientState::Rejected;
+                return;
+            }
             player_id_ = core::PlayerId{w->player_id};
             team_ = w->team;
             tick_duration_ = w->tick_duration_seconds;
             welcome_tick_ = w->server_tick;
             welcome_time_ = now;
-            prediction_ = std::make_unique<PredictedClient>(w->rng_seed);
+            prediction_ = std::make_unique<PredictedClient>(w->rng_seed, config_.nav_map);
             prediction_->set_confirmed_events_enabled(events_enabled_);
             state_ = ClientState::Joined;
             break;

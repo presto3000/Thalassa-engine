@@ -51,6 +51,7 @@ void write_command(WireWriter& w, const sim::Command& c) {
     w.f64(c.attack_windup_seconds);
     w.f64(c.projectile_speed);
     w.u32(c.unit_type);
+    w.f64(c.radius);
 }
 
 bool read_command(WireReader& r, sim::Command& out) {
@@ -73,12 +74,13 @@ bool read_command(WireReader& r, sim::Command& out) {
     c.attack_windup_seconds = r.f64();
     c.projectile_speed = r.f64();
     c.unit_type = r.u32();
+    c.radius = r.f64();
     if (!r.ok()) return false;
 
     // Untrusted numbers: NaN/inf would poison the deterministic simulation.
     if (!finite(c.position) || !finite(c.speed) || !finite(c.max_health) || !finite(c.attack_damage) ||
         !finite(c.attack_range) || !finite(c.attack_cooldown_seconds) || !finite(c.attack_windup_seconds) ||
-        !finite(c.projectile_speed)) {
+        !finite(c.projectile_speed) || !finite(c.radius) || c.radius < 0.0 || c.radius > 1.0e3) {
         return false;
     }
     if (c.attack_kind != sim::Command::kNoProfile && c.attack_kind != 0 && c.attack_kind != 1) return false;
@@ -105,6 +107,7 @@ std::vector<std::byte> encode(const HelloMsg& m) {
     w.u8(static_cast<std::uint8_t>(MessageType::Hello));
     w.u32(m.version);
     w.u32(m.match_id);
+    w.u64(m.nav_hash);
     return w.take();
 }
 
@@ -131,6 +134,7 @@ std::vector<std::byte> encode(const WelcomeMsg& m) {
     w.u64(m.rng_seed);
     w.f64(m.tick_duration_seconds);
     w.u64(m.server_tick);
+    w.u64(m.nav_hash);
     return w.take();
 }
 
@@ -159,6 +163,7 @@ std::optional<HelloMsg> decode_hello(std::span<const std::byte> message) {
     HelloMsg m;
     m.version = r.u32();
     m.match_id = r.u32();
+    m.nav_hash = r.u64();
     return finish(r, m);
 }
 
@@ -181,6 +186,7 @@ std::optional<WelcomeMsg> decode_welcome(std::span<const std::byte> message) {
     m.rng_seed = r.u64();
     m.tick_duration_seconds = r.f64();
     m.server_tick = r.u64();
+    m.nav_hash = r.u64();
     if (r.ok() && !(finite(m.tick_duration_seconds) && m.tick_duration_seconds > 0.0)) return std::nullopt;
     return finish(r, m);
 }
@@ -189,7 +195,7 @@ std::optional<RejectMsg> decode_reject(std::span<const std::byte> message) {
     WireReader r(message);
     if (!expect_type(r, MessageType::Reject)) return std::nullopt;
     const std::uint8_t reason = r.u8();
-    if (reason < 1 || reason > 3) return std::nullopt;
+    if (reason < 1 || reason > 4) return std::nullopt;
     RejectMsg m;
     m.reason = static_cast<RejectReason>(reason);
     return finish(r, m);

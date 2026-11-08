@@ -1,6 +1,7 @@
 add_executable(thalassa_server_tests
     match_host_tests.cpp
     game_server_tests.cpp
+    nav_net_tests.cpp
 )
 
 if(NOT WIN32)
