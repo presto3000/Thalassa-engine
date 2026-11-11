@@ -6,6 +6,7 @@ add_library(thalassa_sim STATIC
     src/nav/pathfinder.cpp
     src/nav/nav_map.cpp
     src/nav/path_planner.cpp
+    src/nav/nav_debug.cpp
     src/commands.cpp
     src/replay.cpp
     src/replay_recording.cpp
