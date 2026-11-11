@@ -8,6 +8,7 @@ add_executable(thalassa_sim_tests
     attack_profile_tests.cpp
     nav_tests.cpp
     nav_movement_tests.cpp
+    nav_debug_tests.cpp
 )
 
 target_link_libraries(thalassa_sim_tests
