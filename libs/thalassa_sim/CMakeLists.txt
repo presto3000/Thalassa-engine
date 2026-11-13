@@ -2,6 +2,7 @@ add_library(thalassa_sim STATIC
     src/sim_world.cpp
     src/systems/movement.cpp
     src/systems/combat.cpp
+    src/systems/crowd.cpp
     src/nav/nav_grid.cpp
     src/nav/pathfinder.cpp
     src/nav/nav_map.cpp

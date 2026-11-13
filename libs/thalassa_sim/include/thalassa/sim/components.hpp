@@ -16,7 +16,9 @@
 
 namespace thalassa::sim::components {
 
-// adding Transform's rotation now would
+// World-space position. Deliberately just a position, no orientation —
+// Milestone 1 has no facing-dependent gameplay yet (that arrives with
+// abilities/attacks in Milestone 2); adding Transform's rotation now would
 // be speculative complexity.
 struct Position {
     core::math::Vec3 value{0.0, 0.0, 0.0};
@@ -91,21 +93,19 @@ struct CombatStats {
 struct Projectile {
     core::Scalar damage = 0.0;
     std::int32_t owner_team = 0;
-    // Explicit field in place of what used to be implicit padding. Padding bytes are NOT preserved by
-    // compiler-generated copies in optimized builds (a copy may move only the members), so a struct with
-    // padding that is serialized/hashed as raw bytes gives different checksums in Debug and Release.
-    std::int32_t reserved_ = 0;
     core::Scalar ttl_seconds = 3.0;
-
+    // Explicit trailing padding is NOT possible here (layout is
+    // {double, int32, <4 pad>, double}); instead construct via make() so
+    // the padding bytes are zeroed.
     [[nodiscard]] static Projectile make(core::Scalar dmg, std::int32_t team, core::Scalar ttl) noexcept {
         Projectile p;
+        std::memset(static_cast<void*>(&p), 0, sizeof p);  // zero implicit padding: raw-byte snapshots/checksums must be deterministic
         p.damage = dmg;
         p.owner_team = team;
         p.ttl_seconds = ttl;
         return p;
     }
 };
-static_assert(sizeof(Projectile) == 8 + 4 + 4 + 8, "Projectile must have no implicit padding");
 
 // How a unit's basic attack is delivered. OPTIONAL component: a unit WITHOUT
 // AttackProfile keeps the Milestone 2 behaviour (instantly fires a basic
@@ -157,11 +157,23 @@ static_assert(sizeof(AttackState) == 24, "AttackState must have no implicit padd
 
 // How big an entity is on the ground, in meters (a circle). Used to pick which inflated
 // copy of the nav map the entity is routed on, so wide units do not plan through gaps they
-// cannot fit. Absent = a point (radius 0). Later also used for unit-vs-unit avoidance.
+// cannot fit. Absent = a point (radius 0). Also the size of the unit-vs-unit separation circle (systems/crowd.hpp): only entities with a Radius > 0 take part.
 struct Radius {
     core::Scalar value = 0.0;
 };
 static_assert(sizeof(Radius) == 8, "Radius must have no implicit padding");
+
+// Stall detection for ordered units with a Radius (see systems/crowd.hpp). Every window of
+// kWindowTicks ticks the unit must have moved a fair share of what its speed allows, or the
+// window counts as stalled; enough stalled windows end the order (the unit "gives up" and rests
+// where it is). Created and removed by crowd_system, never by commands.
+struct MoveProgress {
+    static constexpr std::uint32_t kWindowTicks = 30;
+    core::math::Vec3 anchor{0.0, 0.0, 0.0};  // where the unit was when this window started
+    std::uint32_t ticks_in_window = 0;
+    std::uint32_t stalled_windows = 0;       // consecutive stalled windows so far
+};
+static_assert(sizeof(MoveProgress) == 24 + 4 + 4, "MoveProgress must have no implicit padding");
 
 // The route an entity is following: waypoints from the nav planner (smoothed, in order).
 // Exists only while the entity has a Destination and a nav map is set; steering_system

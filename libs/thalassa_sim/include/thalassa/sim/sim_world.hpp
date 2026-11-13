@@ -14,6 +14,7 @@
 #include "thalassa/sim/nav/path_planner.hpp"
 #include "thalassa/sim/spatial_index.hpp"
 #include "thalassa/sim/systems/combat.hpp"
+#include "thalassa/sim/systems/crowd.hpp"
 #include "thalassa/sim/systems/movement.hpp"
 
 // SimWorld: the deterministic simulation state for one match/instance.
@@ -30,6 +31,8 @@
 //   3. integration_system — Velocity -> Position (moves units AND projectiles)
 //   4. spatial index rebuild — so the rest of this tick's queries see
 //      this tick's post-movement positions
+//   4b. crowd_system     — units with a Radius push apart; stalled orders end. If anyone was
+//      moved the spatial index is rebuilt once more (see systems/crowd.hpp)
 //   5. combat_system     — cooldowns tick down, in-range attacks fire (may spawn projectiles)
 //   6. projectile_collision_system — moving projectiles check for hits, apply damage, expire
 //   7. death_system      — remove anything whose Health reached zero
@@ -88,6 +91,9 @@ public:
         systems::steering_system(ecs_world_, dt, planner_.get());
         systems::integration_system(ecs_world_, dt);
         spatial_index_.rebuild(ecs_world_);
+        if (systems::crowd_system(ecs_world_, spatial_index_, nav_map_.get(), dt)) {
+            spatial_index_.rebuild(ecs_world_);
+        }
 
         systems::combat_system(ecs_world_, spatial_index_, dt, &events_);
         systems::projectile_collision_system(ecs_world_, spatial_index_, dt, &events_);

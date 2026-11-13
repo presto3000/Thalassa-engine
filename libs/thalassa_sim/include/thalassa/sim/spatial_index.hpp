@@ -7,12 +7,12 @@
 #include "thalassa/core/spatial/uniform_grid.hpp"
 #include "thalassa/sim/components.hpp"
 
-// SpatialIndex: "basic spatial structure ... for queries"
+// SpatialIndex: the Milestone 1 "basic spatial structure ... for queries"
 // deliverable, wiring thalassa_core's generic UniformGrid to this project's
 // Position component. Rebuilt from scratch once per tick (see
 // SimWorld::tick) by iterating the Position pool in its deterministic
 // insertion order — see uniform_grid.hpp's header comment for why a full
-// per-tick rebuild is the right tradeoff for target entity
+// per-tick rebuild is the right tradeoff for Milestone 1's target entity
 // counts, and why query results are deterministic regardless of the
 // underlying hash map's iteration order.
 
