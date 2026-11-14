@@ -37,6 +37,8 @@ enum class Layer : std::uint8_t {
     Inflated,       // extra blocked area added by a unit-size class
     Smoothing,      // raw grid path vs smoothed path (probe_path)
     Panel,          // text panel: map hash, counts, search effort
+    Radii,          // every unit's separation circle (step 4)
+    Stalled,        // units whose order is not making headway and may give up soon (step 4)
     kCount
 };
 inline constexpr std::size_t kLayerCount = static_cast<std::size_t>(Layer::kCount);
@@ -108,6 +110,18 @@ struct UnitRoute {
     bool truncated = false;                         // Path::kTruncated (more legs will be planned later)
 };
 
+// A unit that takes part in crowd separation (has a Radius > 0).
+struct AgentInfo {
+    core::ecs::Entity entity;
+    core::math::Vec3 position;
+    core::Scalar radius = 0.0;
+    bool has_order = false;              // has a Destination
+    std::uint32_t stalled_windows = 0;   // MoveProgress: consecutive windows without headway (0 = fine)
+};
+
+// Every agent, in the world's deterministic iteration order.
+[[nodiscard]] std::vector<AgentInfo> collect_agents(const SimWorld& world);
+
 // Every unit that has a Destination or a Path, in the world's deterministic iteration order.
 [[nodiscard]] std::vector<UnitRoute> collect_routes(const SimWorld& world);
 
@@ -128,6 +142,8 @@ struct NavDebugSummary {
     std::size_t units_with_destination = 0;
     std::size_t units_with_path = 0;
     std::size_t partial_paths = 0;
+    std::size_t agents = 0;                          // units with a Radius (crowd separation)
+    std::size_t stalled_agents = 0;                  // ... of which currently stalled
     std::uint64_t searches = 0;                      // planner queries so far
     // Filled in only when a probe was run and passed to summarize().
     std::uint32_t probe_expansions = 0;

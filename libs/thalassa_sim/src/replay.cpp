@@ -60,6 +60,8 @@ void save_world(const SimWorld& world, ByteWriter& writer) {
     // Navigation slice (snapshot v4):
     save_component(world.world().find_pool<Radius>());
     save_component(world.world().find_pool<Path>());
+    // Crowd slice (snapshot v5):
+    save_component(world.world().find_pool<components::MoveProgress>());
 }
 
 void load_world(SimWorld& world, ByteReader& reader) {
@@ -88,6 +90,7 @@ void load_world(SimWorld& world, ByteReader& reader) {
     world.world().ensure_pool<AttackState>().deserialize(reader);
     world.world().ensure_pool<Radius>().deserialize(reader);
     world.world().ensure_pool<Path>().deserialize(reader);
+    world.world().ensure_pool<components::MoveProgress>().deserialize(reader);
 
     world.rng().restore(rng_state, rng_inc);
     world.set_ticks_simulated(ticks);

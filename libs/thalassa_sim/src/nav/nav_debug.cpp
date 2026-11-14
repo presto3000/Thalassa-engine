@@ -8,7 +8,8 @@ namespace thalassa::sim::nav::debug {
 
 namespace {
 constexpr const char* kNames[kLayerCount] = {"grid",   "coords",    "paths",   "destinations", "partial",
-                                              "explored", "inflated", "smoothing", "panel"};
+                                              "explored", "inflated", "smoothing", "panel", "radii",
+                                              "stalled"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == kLayerCount, "add a name for every Layer");
 
 constexpr std::uint32_t bit(Layer l) noexcept { return 1u << static_cast<unsigned>(l); }
@@ -103,6 +104,23 @@ std::vector<CellRun> inflated_runs(const NavMap& map, std::size_t cls) {
     return runs_where(map.grid(cls), &map.base());
 }
 
+std::vector<AgentInfo> collect_agents(const SimWorld& world) {
+    using namespace components;
+    std::vector<AgentInfo> out;
+    const core::ecs::World& w = world.world();
+    w.each<Position, Radius>([&](core::ecs::Entity e, const Position& pos, const Radius& radius) {
+        if (!(radius.value > 0.0)) return;
+        AgentInfo a;
+        a.entity = e;
+        a.position = pos.value;
+        a.radius = radius.value;
+        a.has_order = w.has<Destination>(e);
+        if (w.has<MoveProgress>(e)) a.stalled_windows = w.get<MoveProgress>(e).stalled_windows;
+        out.push_back(a);
+    });
+    return out;
+}
+
 std::vector<UnitRoute> collect_routes(const SimWorld& world) {
     using namespace components;
     std::vector<UnitRoute> out;
@@ -157,6 +175,10 @@ NavDebugSummary summarize(const SimWorld& world, const PathResult* probe) {
         if (!r.waypoints.empty()) ++s.units_with_path;
         if (r.partial) ++s.partial_paths;
     }
+    for (const AgentInfo& a : collect_agents(world)) {
+        ++s.agents;
+        if (a.stalled_windows > 0) ++s.stalled_agents;
+    }
     if (probe != nullptr) {
         s.probe_expansions = probe->expansions;
         s.probe_cost = probe->cost;
@@ -178,7 +200,8 @@ std::vector<std::string> summary_lines(const NavDebugSummary& s) {
                     fixed(s.cell_size, 2) + " m, " + std::to_string(s.blocked_cells) + " blocked, " +
                     std::to_string(s.size_classes) + " size classes");
     lines.push_back("units: " + std::to_string(s.units_with_destination) + " ordered, " +
-                    std::to_string(s.units_with_path) + " on a path, " + std::to_string(s.partial_paths) + " partial");
+                    std::to_string(s.units_with_path) + " on a path, " + std::to_string(s.partial_paths) + " partial, " +
+                    std::to_string(s.agents) + " crowd agents, " + std::to_string(s.stalled_agents) + " stalled");
     lines.push_back("searches so far: " + std::to_string(s.searches));
     if (s.probe_explored != 0 || s.probe_expansions != 0) {
         lines.push_back("probe: " + std::to_string(s.probe_expansions) + " expansions, " +

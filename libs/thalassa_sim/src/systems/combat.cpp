@@ -22,7 +22,7 @@ using components::Velocity;
 
 namespace {
 
-// Projectile flight speed and lifetime are fixed constants
+// Projectile flight speed and lifetime are fixed constants for Milestone 2
 // rather than per-unit configuration — every unit's basic attack fires the
 // same kind of projectile. Making these per-CombatStats fields is a small,
 // natural extension once gameplay needs different projectile types

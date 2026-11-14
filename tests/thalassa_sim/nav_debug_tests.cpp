@@ -152,6 +152,29 @@ TEST_CASE("nav debug: routes of moving units are collected without touching the 
     CHECK(summarize(w2).partial_paths == 1);
 }
 
+TEST_CASE("nav debug: crowd agents and stalled units are reported", "[nav][debug][crowd]") {
+    SimWorld w(1);
+    w.set_nav_map(NavMap::create(NavGrid(1.0, 0.0, 0.0, 40, 40), {0.5}));
+    const auto a = spawn(w, {10.0, 10.0, 0.0}, 0.5);
+    (void)spawn(w, {20.0, 20.0, 0.0}, 0.0);  // no radius: not an agent
+    auto agents = collect_agents(w);
+    REQUIRE(agents.size() == 1);
+    CHECK(agents[0].entity == a);
+    CHECK(agents[0].radius == 0.5);
+    CHECK_FALSE(agents[0].has_order);
+    CHECK(summarize(w).agents == 1);
+    CHECK(summarize(w).stalled_agents == 0);
+
+    // Report a stalled window (crowd_system creates these; here it is set directly).
+    w.tick(SimTick{0}, {Command::move_to(a, {30.0, 10.0, 0.0}, 5.0)});
+    w.world().emplace<sim::components::MoveProgress>(a, sim::components::MoveProgress{{10.0, 10.0, 0.0}, 3, 2});
+    agents = collect_agents(w);
+    REQUIRE(agents.size() == 1);
+    CHECK(agents[0].has_order);
+    CHECK(agents[0].stalled_windows == 2);
+    CHECK(summarize(w).stalled_agents == 1);
+}
+
 TEST_CASE("nav debug: probe_path reports the explored cells, raw and smoothed route", "[nav][debug]") {
     const auto map = walled_map();
     const PathResult r = probe_path(*map, {10.0, 10.0, 0.0}, {30.0, 10.0, 0.0});

@@ -32,7 +32,7 @@ namespace thalassa::sim::systems {
 // `events` (optional, may be null) receives presentation notifications — see
 // thalassa/sim/events.hpp. Passing it never changes simulation results.
 //
-// Units WITHOUT an AttackProfile attack exactly as before. Units WITH
+// Units WITHOUT an AttackProfile attack exactly as in Milestone 2. Units WITH
 // one (and an AttackState) use the windup/release flow: pick a target when
 // the cooldown is ready -> AttackStarted -> after windup_seconds, release:
 // Melee applies damage directly (MeleeHit), Ranged launches a projectile with
