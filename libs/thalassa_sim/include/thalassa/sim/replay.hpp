@@ -33,7 +33,7 @@
 namespace thalassa::sim {
 
 inline constexpr std::uint32_t kSnapshotMagic = 0x54484C41;  // "THLA" (Thalassa)
-inline constexpr std::uint32_t kSnapshotVersion = 5;  // v2: Team/Owner/Health/CombatStats/Projectile; v3: AttackProfile/AttackState; v4: nav hash, Radius/Path; v5: MoveProgress
+inline constexpr std::uint32_t kSnapshotVersion = 6;  // v2: Team/Owner/Health/CombatStats/Projectile; v3: AttackProfile/AttackState; v4: nav hash, Radius/Path; v5: MoveProgress; v6: Chase
 
 // Serializes `world` into `writer`. See the file-level comment for scope.
 void save_world(const SimWorld& world, core::serialization::ByteWriter& writer);

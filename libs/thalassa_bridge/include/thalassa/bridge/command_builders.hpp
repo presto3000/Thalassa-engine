@@ -59,4 +59,11 @@ namespace thalassa::bridge {
                                   unreal_units_to_meters(unreal_speed));
 }
 
+// "Attack that unit": `unreal_speed` is the pursuit speed in Unreal units (cm) per second.
+[[nodiscard]] inline sim::Command build_attack_command(PackedEntityHandle attacker, PackedEntityHandle target,
+                                                        double unreal_speed) {
+    return sim::Command::attack_target(unpack_entity(attacker), unpack_entity(target),
+                                       unreal_units_to_meters(unreal_speed));
+}
+
 }  // namespace thalassa::bridge

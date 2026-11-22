@@ -42,6 +42,7 @@ struct Command {
     enum class Type : std::uint8_t {
         SpawnUnit,
         MoveTo,
+        AttackTarget,  // go after `target` until it is in attack range, then fight it (see systems/chase.hpp)
     };
 
     Type type = Type::MoveTo;
@@ -50,6 +51,9 @@ struct Command {
     // can't know a not-yet-created entity's id in advance; apply_commands()
     // returns created entities instead (see below).
     core::ecs::Entity entity{};
+
+    // AttackTarget: the enemy to pursue (the attacker is `entity`, `speed` its pursuit speed).
+    core::ecs::Entity target{};
 
     // SpawnUnit: initial position. MoveTo: destination.
     core::math::Vec3 position{0.0, 0.0, 0.0};
@@ -131,6 +135,19 @@ struct Command {
         c.attack_damage = attack_damage;
         c.attack_range = attack_range;
         c.attack_cooldown_seconds = attack_cooldown_seconds;
+        return c;
+    }
+
+    // "Attack that one": `attacker` walks (routed on the nav map, re-routed as the target moves)
+    // until the target is within its attack range, and prefers it over other enemies in range.
+    // A later MoveTo cancels it.
+    [[nodiscard]] static Command attack_target(core::ecs::Entity attacker, core::ecs::Entity victim,
+                                                core::Scalar pursuit_speed) {
+        Command c;
+        c.type = Type::AttackTarget;
+        c.entity = attacker;
+        c.target = victim;
+        c.speed = pursuit_speed;
         return c;
     }
 

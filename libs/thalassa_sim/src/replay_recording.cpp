@@ -32,6 +32,7 @@ void write_command(ByteWriter& w, const Command& c) {
     w.write_pod(c.projectile_speed);
     w.write_pod(c.unit_type);
     w.write_pod(c.radius);
+    w.write_pod(c.target);
 }
 
 Command read_command(ByteReader& r) {
@@ -51,6 +52,7 @@ Command read_command(ByteReader& r) {
     c.projectile_speed = r.read_pod<core::Scalar>();
     c.unit_type = r.read_pod<std::uint32_t>();
     c.radius = r.read_pod<core::Scalar>();
+    c.target = r.read_pod<core::ecs::Entity>();
     return c;
 }
 

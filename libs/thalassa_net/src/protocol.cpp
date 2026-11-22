@@ -52,12 +52,14 @@ void write_command(WireWriter& w, const sim::Command& c) {
     w.f64(c.projectile_speed);
     w.u32(c.unit_type);
     w.f64(c.radius);
+    w.u32(c.target.index());
+    w.u32(c.target.generation());
 }
 
 bool read_command(WireReader& r, sim::Command& out) {
     sim::Command c;
     const std::uint8_t type = r.u8();
-    if (type > static_cast<std::uint8_t>(sim::Command::Type::MoveTo)) return false;
+    if (type > static_cast<std::uint8_t>(sim::Command::Type::AttackTarget)) return false;
     c.type = static_cast<sim::Command::Type>(type);
     const std::uint32_t index = r.u32();
     const std::uint32_t generation = r.u32();
@@ -75,6 +77,9 @@ bool read_command(WireReader& r, sim::Command& out) {
     c.projectile_speed = r.f64();
     c.unit_type = r.u32();
     c.radius = r.f64();
+    const std::uint32_t target_index = r.u32();
+    const std::uint32_t target_generation = r.u32();
+    c.target = core::ecs::Entity(target_index, target_generation);
     if (!r.ok()) return false;
 
     // Untrusted numbers: NaN/inf would poison the deterministic simulation.

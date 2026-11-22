@@ -215,6 +215,15 @@ bool GameServer::validate_and_stamp(Client& client, const MatchState& match, sim
             if (!(command.speed >= 0.0) || command.speed > 1.0e4) return false;
             return true;
         }
+        case sim::Command::Type::AttackTarget: {
+            const auto& world = host_.match_world(client.match).world();
+            if (!world.is_alive(command.entity) || !world.is_alive(command.target)) return false;
+            if (command.entity == command.target) return false;
+            if (!world.has<sim::components::Owner>(command.entity)) return false;
+            if (world.get<sim::components::Owner>(command.entity).player != client.player) return false;  // not yours
+            if (!(command.speed >= 0.0) || command.speed > 1.0e4) return false;
+            return true;
+        }
     }
     return false;
 }

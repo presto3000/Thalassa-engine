@@ -16,6 +16,7 @@ Command sample_command() {
                     .as_ranged(0.3, 22.0)
                     .with_radius(0.6);
     c.unit_type = 9;
+    c.target = thalassa::core::ecs::Entity{11, 4};
     return c;
 }
 
@@ -25,7 +26,7 @@ bool same(const Command& a, const Command& b) {
            a.attack_damage == b.attack_damage && a.attack_range == b.attack_range &&
            a.attack_cooldown_seconds == b.attack_cooldown_seconds && a.attack_kind == b.attack_kind &&
            a.attack_windup_seconds == b.attack_windup_seconds && a.projectile_speed == b.projectile_speed &&
-           a.unit_type == b.unit_type && a.radius == b.radius;
+           a.unit_type == b.unit_type && a.radius == b.radius && a.target == b.target;
 }
 
 }  // namespace
@@ -46,6 +47,21 @@ TEST_CASE("protocol: a Command is exactly kCommandWireBytes on the wire and roun
     WireReader r2(w2.bytes());
     REQUIRE(read_command(r2, out));
     REQUIRE(same(out, mv));
+
+    const Command atk = Command::attack_target(thalassa::core::ecs::Entity{5, 2}, thalassa::core::ecs::Entity{8, 3}, 6.0);
+    WireWriter w3;
+    write_command(w3, atk);
+    REQUIRE(w3.size() == kCommandWireBytes);
+    WireReader r3(w3.bytes());
+    REQUIRE(read_command(r3, out));
+    REQUIRE(same(out, atk));
+    REQUIRE(out.type == Command::Type::AttackTarget);
+
+    // A command type beyond the known ones is refused.
+    std::vector<std::byte> bad = w3.bytes();
+    bad[0] = std::byte{99};
+    WireReader rb(bad);
+    REQUIRE_FALSE(read_command(rb, out));
 }
 
 TEST_CASE("protocol: every message type round-trips", "[protocol]") {

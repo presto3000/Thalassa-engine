@@ -144,3 +144,40 @@ TEST_CASE("a client with the match's map predicts and confirms routes around wal
     while (player.step_tick()) {}
     CHECK(player.final_checksum_matches());
 }
+
+TEST_CASE("attack orders over the network: owners may chase, others are refused", "[net][server][chase]") {
+    Rig rig;
+    const auto match = rig.server->create_match(1);
+    rig.server->schedule_command(
+        match, SimTick{0},
+        Command::spawn_unit({10.0, 10.0, 0.0}, PlayerId{1}, 0, 1.0e6, 10.0, 3.0, 0.5).as_melee(0.1));
+    rig.server->schedule_command(
+        match, SimTick{0},
+        Command::spawn_unit({30.0, 10.0, 0.0}, PlayerId{2}, 1, 1000.0, 10.0, 3.0, 0.5).as_melee(0.1));
+
+    GameClient& first = rig.add_client(match, nullptr);   // player 1
+    GameClient& second = rig.add_client(match, nullptr);  // player 2
+    REQUIRE(rig.run_until(5.0, [&] { return first.joined() && second.joined(); }));
+
+    Entity mine{}, theirs{};
+    REQUIRE(rig.run_until(5.0, [&] {
+        bool a = false, b = false;
+        first.confirmed_world().world().each<sim::components::Owner>([&](Entity e, const sim::components::Owner& o) {
+            if (o.player == PlayerId{1}) { mine = e; a = true; }
+            if (o.player == PlayerId{2}) { theirs = e; b = true; }
+        });
+        return a && b;
+    }));
+
+    // Player 2 tries to order player 1's unit: refused by the server.
+    REQUIRE(second.issue_command(Command::attack_target(mine, theirs, 6.0)));
+    rig.run(0.5);
+    CHECK(rig.server->stats().commands_rejected >= 1);
+
+    // Player 1 orders its own unit: accepted, the unit walks over and hurts the target.
+    REQUIRE(first.issue_command(Command::attack_target(mine, theirs, 6.0)));
+    REQUIRE(rig.run_until(15.0, [&] {
+        return first.confirmed_world().world().get<sim::components::Health>(theirs).current < 1000.0;
+    }));
+    CHECK(rig.server->host().match_world(match).world().has<sim::components::Chase>(mine));
+}
