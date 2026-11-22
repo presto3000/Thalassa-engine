@@ -39,6 +39,7 @@ enum class Layer : std::uint8_t {
     Panel,          // text panel: map hash, counts, search effort
     Radii,          // every unit's separation circle (step 4)
     Stalled,        // units whose order is not making headway and may give up soon (step 4)
+    Chase,          // attack orders: line from each chaser to its target (step 4b)
     kCount
 };
 inline constexpr std::size_t kLayerCount = static_cast<std::size_t>(Layer::kCount);
@@ -122,6 +123,18 @@ struct AgentInfo {
 // Every agent, in the world's deterministic iteration order.
 [[nodiscard]] std::vector<AgentInfo> collect_agents(const SimWorld& world);
 
+// One attack order in progress (components::Chase).
+struct ChaseLink {
+    core::ecs::Entity attacker;
+    core::ecs::Entity target;
+    core::math::Vec3 attacker_position;
+    core::math::Vec3 target_position;
+    bool in_reach = false;  // close enough that chase_system has stopped the attacker
+};
+
+// Every chaser whose target still exists, in pool order.
+[[nodiscard]] std::vector<ChaseLink> collect_chases(const SimWorld& world);
+
 // Every unit that has a Destination or a Path, in the world's deterministic iteration order.
 [[nodiscard]] std::vector<UnitRoute> collect_routes(const SimWorld& world);
 
@@ -144,6 +157,7 @@ struct NavDebugSummary {
     std::size_t partial_paths = 0;
     std::size_t agents = 0;                          // units with a Radius (crowd separation)
     std::size_t stalled_agents = 0;                  // ... of which currently stalled
+    std::size_t chases = 0;                          // attack orders in progress
     std::uint64_t searches = 0;                      // planner queries so far
     // Filled in only when a probe was run and passed to summarize().
     std::uint32_t probe_expansions = 0;

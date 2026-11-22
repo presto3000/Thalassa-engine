@@ -9,7 +9,7 @@ namespace thalassa::sim::nav::debug {
 namespace {
 constexpr const char* kNames[kLayerCount] = {"grid",   "coords",    "paths",   "destinations", "partial",
                                               "explored", "inflated", "smoothing", "panel", "radii",
-                                              "stalled"};
+                                              "stalled", "chase"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == kLayerCount, "add a name for every Layer");
 
 constexpr std::uint32_t bit(Layer l) noexcept { return 1u << static_cast<unsigned>(l); }
@@ -121,6 +121,23 @@ std::vector<AgentInfo> collect_agents(const SimWorld& world) {
     return out;
 }
 
+std::vector<ChaseLink> collect_chases(const SimWorld& world) {
+    using namespace components;
+    std::vector<ChaseLink> out;
+    const core::ecs::World& w = world.world();
+    w.each<Chase, Position>([&](core::ecs::Entity e, const Chase& chase, const Position& pos) {
+        if (!w.is_alive(chase.target) || !w.has<Position>(chase.target)) return;
+        ChaseLink l;
+        l.attacker = e;
+        l.target = chase.target;
+        l.attacker_position = pos.value;
+        l.target_position = w.get<Position>(chase.target).value;
+        l.in_reach = !w.has<Destination>(e);  // chase_system removes the walk once the target is in reach
+        out.push_back(l);
+    });
+    return out;
+}
+
 std::vector<UnitRoute> collect_routes(const SimWorld& world) {
     using namespace components;
     std::vector<UnitRoute> out;
@@ -179,6 +196,7 @@ NavDebugSummary summarize(const SimWorld& world, const PathResult* probe) {
         ++s.agents;
         if (a.stalled_windows > 0) ++s.stalled_agents;
     }
+    s.chases = collect_chases(world).size();
     if (probe != nullptr) {
         s.probe_expansions = probe->expansions;
         s.probe_cost = probe->cost;
@@ -201,7 +219,8 @@ std::vector<std::string> summary_lines(const NavDebugSummary& s) {
                     std::to_string(s.size_classes) + " size classes");
     lines.push_back("units: " + std::to_string(s.units_with_destination) + " ordered, " +
                     std::to_string(s.units_with_path) + " on a path, " + std::to_string(s.partial_paths) + " partial, " +
-                    std::to_string(s.agents) + " crowd agents, " + std::to_string(s.stalled_agents) + " stalled");
+                    std::to_string(s.agents) + " crowd agents, " + std::to_string(s.stalled_agents) + " stalled, " +
+                    std::to_string(s.chases) + " chasing");
     lines.push_back("searches so far: " + std::to_string(s.searches));
     if (s.probe_explored != 0 || s.probe_expansions != 0) {
         lines.push_back("probe: " + std::to_string(s.probe_expansions) + " expansions, " +

@@ -175,6 +175,22 @@ TEST_CASE("nav debug: crowd agents and stalled units are reported", "[nav][debug
     CHECK(summarize(w).stalled_agents == 1);
 }
 
+TEST_CASE("nav debug: chase links are reported", "[nav][debug][chase]") {
+    SimWorld w(1);
+    const auto a = spawn(w, {10.0, 10.0, 0.0});
+    const auto b = spawn(w, {40.0, 10.0, 0.0});
+    w.world().emplace<sim::components::CombatStats>(a, sim::components::CombatStats{10.0, 3.0, 1.0, 0.0});
+    CHECK(collect_chases(w).empty());
+    w.tick(SimTick{0}, {Command::attack_target(a, b, 6.0)});
+    const auto links = collect_chases(w);
+    REQUIRE(links.size() == 1);
+    CHECK(links[0].attacker == a);
+    CHECK(links[0].target == b);
+    CHECK_FALSE(links[0].in_reach);  // still walking
+    CHECK(links[0].target_position.x == 40.0);
+    CHECK(summarize(w).chases == 1);
+}
+
 TEST_CASE("nav debug: probe_path reports the explored cells, raw and smoothed route", "[nav][debug]") {
     const auto map = walled_map();
     const PathResult r = probe_path(*map, {10.0, 10.0, 0.0}, {30.0, 10.0, 0.0});

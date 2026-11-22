@@ -163,6 +163,18 @@ struct Radius {
 };
 static_assert(sizeof(Radius) == 8, "Radius must have no implicit padding");
 
+// An attack order (Command::AttackTarget): pursue `target` until it is within the unit's attack
+// range, fight it, and pursue again if it moves away. Cleared when the target dies/disappears
+// or the unit gets a MoveTo. chase_system (systems/chase.hpp) turns it into Destinations/Paths.
+struct Chase {
+    static constexpr std::uint32_t kMinReplanTicks = 10;  // never replan more often than this
+    core::ecs::Entity target{};
+    core::Scalar speed = 5.0;
+    std::uint32_t ticks_since_plan = kMinReplanTicks;  // starts "due": the first plan happens at once
+    std::uint32_t reserved_ = 0;
+};
+static_assert(sizeof(Chase) == 8 + 8 + 4 + 4, "Chase must have no implicit padding");
+
 // Stall detection for ordered units with a Radius (see systems/crowd.hpp). Every window of
 // kWindowTicks ticks the unit must have moved a fair share of what its speed allows, or the
 // window counts as stalled; enough stalled windows end the order (the unit "gives up" and rests

@@ -13,6 +13,7 @@
 #include "thalassa/sim/nav/nav_map.hpp"
 #include "thalassa/sim/nav/path_planner.hpp"
 #include "thalassa/sim/spatial_index.hpp"
+#include "thalassa/sim/systems/chase.hpp"
 #include "thalassa/sim/systems/combat.hpp"
 #include "thalassa/sim/systems/crowd.hpp"
 #include "thalassa/sim/systems/movement.hpp"
@@ -27,6 +28,7 @@
 // tick() runs, in this fixed order every tick:
 //   1. apply_commands   — Command buffer -> World mutations (spawns, move orders)
 //      (with a nav map: each MoveTo is routed here, see set_nav_map)
+//   1b. chase_system     — attack orders: walk toward / stop at range of the target
 //   2. steering_system   — Destination (+ Path) -> desired Velocity
 //   3. integration_system — Velocity -> Position (moves units AND projectiles)
 //   4. spatial index rebuild — so the rest of this tick's queries see
@@ -88,6 +90,7 @@ public:
             }
         }
 
+        systems::chase_system(ecs_world_, planner_.get());
         systems::steering_system(ecs_world_, dt, planner_.get());
         systems::integration_system(ecs_world_, dt);
         spatial_index_.rebuild(ecs_world_);

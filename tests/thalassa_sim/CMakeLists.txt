@@ -10,6 +10,7 @@ add_executable(thalassa_sim_tests
     nav_movement_tests.cpp
     nav_debug_tests.cpp
     crowd_tests.cpp
+    chase_tests.cpp
 )
 
 target_link_libraries(thalassa_sim_tests

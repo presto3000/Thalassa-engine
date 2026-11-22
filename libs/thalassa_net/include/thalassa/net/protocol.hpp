@@ -32,7 +32,7 @@
 
 namespace thalassa::net {
 
-inline constexpr std::uint32_t kProtocolVersion = 4;  // v2: Command carries unit_type (client spawn requests); v3: + radius; v4: nav map hash in Hello/Welcome
+inline constexpr std::uint32_t kProtocolVersion = 5;  // v2: Command carries unit_type (client spawn requests); v3: + radius; v4: nav map hash in Hello/Welcome; v5: Command::target + AttackTarget
 
 enum class MessageType : std::uint8_t {
     Hello = 1,
@@ -82,7 +82,7 @@ struct BatchMsg {
 
 // Encoded size of one Command, and the most entries a Batch can carry while
 // fitting a ReliableChannel message.
-inline constexpr std::size_t kCommandWireBytes = 113;
+inline constexpr std::size_t kCommandWireBytes = 121;
 inline constexpr std::size_t kBatchHeaderBytes = 11;
 inline constexpr std::size_t kBatchEntryBytes = 8 + kCommandWireBytes;
 [[nodiscard]] constexpr std::size_t max_batch_entries(std::size_t max_message_bytes) {

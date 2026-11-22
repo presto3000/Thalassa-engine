@@ -4,6 +4,7 @@
 #include "thalassa/bridge/command_builders.hpp"
 
 using Catch::Approx;
+using thalassa::bridge::build_attack_command;
 using thalassa::bridge::build_move_command;
 using thalassa::bridge::build_spawn_command;
 using thalassa::bridge::pack_entity;
@@ -47,6 +48,16 @@ TEST_CASE("build_move_command converts entity handle and destination", "[command
     REQUIRE(cmd.entity == target);
     REQUIRE(cmd.position.x == Approx(2.0));
     REQUIRE(cmd.speed == Approx(8.0));  // 800 unreal units/sec -> 8 m/s
+}
+
+TEST_CASE("build_attack_command converts handles and pursuit speed", "[command_builders]") {
+    const Entity attacker{5, 2};
+    const Entity victim{9, 1};
+    const Command cmd = build_attack_command(pack_entity(attacker), pack_entity(victim), 600.0);
+    REQUIRE(cmd.type == Command::Type::AttackTarget);
+    REQUIRE(cmd.entity == attacker);
+    REQUIRE(cmd.target == victim);
+    REQUIRE(cmd.speed == Approx(6.0));
 }
 
 TEST_CASE("build_hero_spawn_command sets melee/ranged attack profile and converts projectile speed",

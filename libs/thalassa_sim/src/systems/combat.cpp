@@ -67,6 +67,17 @@ void combat_system(World& world, const SpatialIndex& spatial_index, core::Scalar
     // docs/milestone2_combat_design.md).
     auto find_target = [&world, &spatial_index](Entity self, const Position& pos, const Team& team,
                                                 const CombatStats& stats) {
+        // An explicit attack order wins while its target is in range.
+        if (world.has<components::Chase>(self)) {
+            const Entity wanted = world.get<components::Chase>(self).target;
+            if (world.is_alive(wanted) && world.has<Team>(wanted) && world.has<Health>(wanted) &&
+                world.has<Position>(wanted) && world.get<Team>(wanted).id != team.id &&
+                world.get<Health>(wanted).current > 0.0 &&
+                (world.get<Position>(wanted).value - pos.value).length_sq() <= stats.attack_range * stats.attack_range) {
+                return wanted;
+            }
+        }
+
         std::vector<Entity> candidates;
         spatial_index.query_radius(pos.value, stats.attack_range, candidates);
 

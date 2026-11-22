@@ -46,8 +46,23 @@ std::vector<Entity> apply_commands(World& world, const std::vector<Command>& com
                     // a per-order arrival radius yet (kept minimal per
                     // Milestone 2 scope) — add one if/when gameplay needs
                     // per-order precision control.
+                    if (world.has<components::Chase>(cmd.entity)) world.remove<components::Chase>(cmd.entity);
                     world.emplace<components::Destination>(cmd.entity,
                                                              components::Destination{cmd.position, cmd.speed, 0.5});
+                }
+                break;
+            }
+            case Command::Type::AttackTarget: {
+                // Ignored unless both are alive, the attacker can fight, and it is not itself.
+                if (world.is_alive(cmd.entity) && world.is_alive(cmd.target) && cmd.entity != cmd.target &&
+                    world.has<components::CombatStats>(cmd.entity) && world.has<components::Position>(cmd.entity) &&
+                    world.has<components::Position>(cmd.target)) {
+                    if (world.has<components::Destination>(cmd.entity)) world.remove<components::Destination>(cmd.entity);
+                    if (world.has<components::Path>(cmd.entity)) world.remove<components::Path>(cmd.entity);
+                    components::Chase chase;
+                    chase.target = cmd.target;
+                    chase.speed = cmd.speed;
+                    world.emplace<components::Chase>(cmd.entity, chase);
                 }
                 break;
             }
